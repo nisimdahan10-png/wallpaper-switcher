@@ -53,6 +53,7 @@ class LiveWallpaper : WallpaperService() {
 
         private val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) {
+                if (!Prefs.isLive(c)) return
                 val t = Prefs.getTrigger(c)
                 val enabled = Prefs.isEnabled(c)
                 val go = when (i.action) {
@@ -127,6 +128,8 @@ class LiveWallpaper : WallpaperService() {
             loader.execute {
                 val uri = WallpaperChanger.pickNext(ctx) ?: return@execute
                 val bmp = WallpaperChanger.decodeScaled(ctx, Uri.parse(uri)) ?: return@execute
+                // "שניהם" – מסך הנעילה מקבל את אותה תמונה (בלי אנימציה)
+                if (Prefs.getTarget(ctx) == Prefs.TARGET_BOTH) WallpaperChanger.setLock(ctx, bmp)
                 handler.post {
                     pendingNext = bmp
                     // אם המסך כבוי – האנימציה תרוץ כשהוא יידלק

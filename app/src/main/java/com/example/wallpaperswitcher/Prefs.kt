@@ -48,5 +48,6 @@ object Prefs {
 
     fun getEffect(c: Context) = sp(c).getInt("effect", EFFECT_NONE)
     fun setEffect(c: Context, v: Int) = sp(c).edit().putInt("effect", v).apply()
-    fun isLive(c: Context) = getEffect(c) != EFFECT_NONE
+    /** רקע חי (עם אנימציה) פועל במסך הבית – לכן לא במצב "רק מסך נעילה" */
+    fun isLive(c: Context) = getEffect(c) != EFFECT_NONE && getTarget(c) != TARGET_LOCK
 }

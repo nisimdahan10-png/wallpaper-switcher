@@ -62,18 +62,60 @@ object WallpaperChanger {
     }
 
     private fun change(c: Context) {
+        val wm = WallpaperManager.getInstance(c)
+        val prevUri = if (Prefs.getIndex(c) >= 0) currentUri(c) else null
         val uri = pickNext(c) ?: return
         val bitmap = decodeScaled(c, Uri.parse(uri)) ?: run {
             Log.w(TAG, "Could not read image $uri")
             return
         }
-        val flags = when (Prefs.getTarget(c)) {
-            Prefs.TARGET_HOME -> WallpaperManager.FLAG_SYSTEM
-            Prefs.TARGET_LOCK -> WallpaperManager.FLAG_LOCK
-            else -> WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK
+        when (Prefs.getTarget(c)) {
+            Prefs.TARGET_HOME -> {
+                // אם למסך הנעילה אין רקע משלו הוא "נגרר" אחרי מסך הבית –
+                // לכן קודם מקבעים לו את התמונה הקודמת
+                if (wm.getWallpaperId(WallpaperManager.FLAG_LOCK) < 0 && prevUri != null) {
+                    decodeScaled(c, Uri.parse(prevUri))?.let {
+                        wm.setBitmap(it, null, true, WallpaperManager.FLAG_LOCK)
+                        it.recycle()
+                    }
+                }
+                wm.setBitmap(bitmap, null, true, WallpaperManager.FLAG_SYSTEM)
+            }
+            Prefs.TARGET_LOCK ->
+                wm.setBitmap(bitmap, null, true, WallpaperManager.FLAG_LOCK)
+            else -> {
+                // שתי קריאות נפרדות – בחלק מהמכשירים (סמסונג) קריאה משולבת מעדכנת רק מסך אחד
+                wm.setBitmap(bitmap, null, true, WallpaperManager.FLAG_SYSTEM)
+                wm.setBitmap(bitmap, null, true, WallpaperManager.FLAG_LOCK)
+            }
         }
-        WallpaperManager.getInstance(c).setBitmap(bitmap, null, true, flags)
         bitmap.recycle()
+    }
+
+    /** מגדיר רק את מסך הנעילה (בשימוש ברקע חי) */
+    fun setLock(c: Context, bitmap: Bitmap) {
+        try {
+            WallpaperManager.getInstance(c).setBitmap(bitmap, null, true, WallpaperManager.FLAG_LOCK)
+        } catch (e: Exception) {
+            Log.e(TAG, "lock set failed", e)
+        }
+    }
+
+    /**
+     * בכניסה למצב אפקטים: "שניהם" – מסך הנעילה מקבל את התמונה הנוכחית;
+     * "רק מסך בית" – מקבעים למסך הנעילה תמונה משלו כדי שלא יתחלף.
+     */
+    fun prepareLockForLive(context: Context) {
+        val c = context.applicationContext
+        executor.execute {
+            val target = Prefs.getTarget(c)
+            val wm = WallpaperManager.getInstance(c)
+            val needs = target == Prefs.TARGET_BOTH ||
+                (target == Prefs.TARGET_HOME && wm.getWallpaperId(WallpaperManager.FLAG_LOCK) < 0)
+            if (!needs) return@execute
+            val uri = currentUri(c) ?: return@execute
+            decodeScaled(c, Uri.parse(uri))?.let { setLock(c, it); it.recycle() }
+        }
     }
 
     /** טוען תמונה מוקטנת לגודל המסך כדי לא לגמור את הזיכרון */

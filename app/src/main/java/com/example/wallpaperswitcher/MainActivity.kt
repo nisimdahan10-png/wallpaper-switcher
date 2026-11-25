@@ -167,6 +167,7 @@ class MainActivity : Activity() {
                 R.id.targetLock -> Prefs.TARGET_LOCK
                 else -> Prefs.TARGET_BOTH
             }
+            updateEffectSection()
             updateApplyButton()
         }
 
@@ -196,15 +197,17 @@ class MainActivity : Activity() {
         applyButton.setOnClickListener {
             val wasLive = Prefs.isLive(this)
             Prefs.setEffect(this, pendingEffect)
-            val nowLive = Prefs.isLive(this)
-            if (nowLive && !isLiveWallpaperActive()) {
-                openLiveWallpaperPicker()
-            } else if (wasLive && !nowLive && Prefs.getUris(this).isNotEmpty()) {
-                WallpaperChanger.changeAsync(this) // חזרה לרקע רגיל
-            }
             Prefs.setRandom(this, pendingRandom)
             Prefs.setTrigger(this, pendingTrigger)
             Prefs.setTarget(this, pendingTarget)
+            val nowLive = Prefs.isLive(this)
+
+            if (nowLive) {
+                WallpaperChanger.prepareLockForLive(this)
+                if (!isLiveWallpaperActive()) openLiveWallpaperPicker()
+            } else if (wasLive && Prefs.getUris(this).isNotEmpty()) {
+                WallpaperChanger.changeAsync(this) // חזרה לרקע רגיל
+            }
             refreshStatus()
             updateApplyButton()
             toast("ההגדרות נשמרו")
@@ -233,7 +236,10 @@ class MainActivity : Activity() {
                 requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF)
             }
             SwitcherService.start(this)
-            if (Prefs.isLive(this) && !isLiveWallpaperActive()) openLiveWallpaperPicker()
+            if (Prefs.isLive(this)) {
+                WallpaperChanger.prepareLockForLive(this)
+                if (!isLiveWallpaperActive()) openLiveWallpaperPicker()
+            }
         } else {
             SwitcherService.stop(this)
         }
@@ -260,9 +266,14 @@ class MainActivity : Activity() {
             pendingEffect != Prefs.getEffect(this)
 
     private fun updateEffectSection() {
-        val live = pendingEffect != Prefs.EFFECT_NONE
-        findViewById<View>(R.id.targetSection).visibility = if (live) View.GONE else View.VISIBLE
-        findViewById<View>(R.id.effectHint).visibility = if (live) View.VISIBLE else View.GONE
+        val effect = pendingEffect != Prefs.EFFECT_NONE
+        val hint = findViewById<TextView>(R.id.effectHint)
+        hint.visibility = if (effect) View.VISIBLE else View.GONE
+        hint.text = when (pendingTarget) {
+            Prefs.TARGET_LOCK -> "אפקטים פועלים רק במסך הבית – במצב \"רק מסך נעילה\" ההחלפה תהיה בלי אנימציה."
+            Prefs.TARGET_BOTH -> "מסך הבית מתחלף עם אנימציה, ומסך הנעילה מתעדכן לאותה תמונה (בלי אנימציה)."
+            else -> "מסך הבית מתחלף עם אנימציה. מסך הנעילה לא משתנה."
+        }
     }
 
     private fun isLiveWallpaperActive(): Boolean = try {
@@ -318,7 +329,7 @@ class MainActivity : Activity() {
             Prefs.EFFECT_RANDOM -> "אפקט אקראי"
             else -> null
         }
-        val extra = if (effectName != null) "עם $effectName" else whereText
+        val extra = if (effectName != null && Prefs.isLive(this)) "$whereText · $effectName" else whereText
         statusSub.text = if (on) "מתחלף $whenText · $extra"
         else "הפעל כדי שהרקע יתחלף אוטומטית"
     }
