@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layoutDirection="rtl">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <Switch
+            android:id="@+id/enabledSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="הפעל החלפת רקעים"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:paddingBottom="16dp" />
+
+        <TextView
+            android:id="@+id/countText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:paddingBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/pickButton"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="הוסף תמונות" />
+
+            <Button
+                android:id="@+id/clearButton"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="נקה רשימה" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="מתי להחליף?"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:paddingTop="20dp" />
+
+        <RadioGroup
+            android:id="@+id/triggerGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <RadioButton android:id="@+id/triggerOff"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="בכיבוי המסך (מומלץ – הרקע החדש מוכן כשמדליקים)" />
+            <RadioButton android:id="@+id/triggerOn"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="בהדלקת המסך" />
+            <RadioButton android:id="@+id/triggerBoth"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="גם וגם" />
+        </RadioGroup>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="איפה להחליף?"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:paddingTop="20dp" />
+
+        <RadioGroup
+            android:id="@+id/targetGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <RadioButton android:id="@+id/targetBoth"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="מסך הבית ומסך הנעילה" />
+            <RadioButton android:id="@+id/targetHome"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="רק מסך הבית" />
+            <RadioButton android:id="@+id/targetLock"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="רק מסך הנעילה" />
+        </RadioGroup>
+
+        <CheckBox
+            android:id="@+id/randomBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="סדר אקראי"
+            android:paddingTop="12dp" />
+
+        <Button
+            android:id="@+id/nowButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="החלף עכשיו (בדיקה)" />
+
+        <Button
+            android:id="@+id/batteryButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="הגדרות סוללה (שהמערכת לא תעצור את האפליקציה)" />
+    </LinearLayout>
+</ScrollView>
