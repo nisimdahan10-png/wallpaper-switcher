@@ -15,6 +15,13 @@ object Prefs {
     const val TARGET_HOME = 1
     const val TARGET_LOCK = 2
 
+    // אפקט מעבר (כל ערך חוץ מ-NONE = רקע חי)
+    const val EFFECT_NONE = 0
+    const val EFFECT_FADE = 1
+    const val EFFECT_ZOOM = 2
+    const val EFFECT_SLIDE = 3
+    const val EFFECT_RANDOM = 4
+
     private fun sp(c: Context): SharedPreferences =
         c.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
@@ -38,4 +45,8 @@ object Prefs {
 
     fun isEnabled(c: Context) = sp(c).getBoolean("enabled", false)
     fun setEnabled(c: Context, v: Boolean) = sp(c).edit().putBoolean("enabled", v).apply()
+
+    fun getEffect(c: Context) = sp(c).getInt("effect", EFFECT_NONE)
+    fun setEffect(c: Context, v: Int) = sp(c).edit().putInt("effect", v).apply()
+    fun isLive(c: Context) = getEffect(c) != EFFECT_NONE
 }

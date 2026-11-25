@@ -3,6 +3,8 @@ package com.example.wallpaperswitcher
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.WallpaperManager
+import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -49,6 +51,7 @@ class MainActivity : Activity() {
     private var pendingRandom = false
     private var pendingTrigger = 0
     private var pendingTarget = 0
+    private var pendingEffect = 0
     private lateinit var applyButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -123,6 +126,7 @@ class MainActivity : Activity() {
         pendingRandom = Prefs.isRandom(this)
         pendingTrigger = Prefs.getTrigger(this)
         pendingTarget = Prefs.getTarget(this)
+        pendingEffect = Prefs.getEffect(this)
         applyButton = findViewById(R.id.applyButton)
 
         val randomSwitch = findViewById<Switch>(R.id.randomSwitch)
@@ -166,7 +170,38 @@ class MainActivity : Activity() {
             updateApplyButton()
         }
 
+        val effectGroup = findViewById<RadioGroup>(R.id.effectGroup)
+        effectGroup.check(
+            when (pendingEffect) {
+                Prefs.EFFECT_FADE -> R.id.effectFade
+                Prefs.EFFECT_ZOOM -> R.id.effectZoom
+                Prefs.EFFECT_SLIDE -> R.id.effectSlide
+                Prefs.EFFECT_RANDOM -> R.id.effectRandom
+                else -> R.id.effectNone
+            }
+        )
+        effectGroup.setOnCheckedChangeListener { _, id ->
+            pendingEffect = when (id) {
+                R.id.effectFade -> Prefs.EFFECT_FADE
+                R.id.effectZoom -> Prefs.EFFECT_ZOOM
+                R.id.effectSlide -> Prefs.EFFECT_SLIDE
+                R.id.effectRandom -> Prefs.EFFECT_RANDOM
+                else -> Prefs.EFFECT_NONE
+            }
+            updateEffectSection()
+            updateApplyButton()
+        }
+        updateEffectSection()
+
         applyButton.setOnClickListener {
+            val wasLive = Prefs.isLive(this)
+            Prefs.setEffect(this, pendingEffect)
+            val nowLive = Prefs.isLive(this)
+            if (nowLive && !isLiveWallpaperActive()) {
+                openLiveWallpaperPicker()
+            } else if (wasLive && !nowLive && Prefs.getUris(this).isNotEmpty()) {
+                WallpaperChanger.changeAsync(this) // חזרה לרקע רגיל
+            }
             Prefs.setRandom(this, pendingRandom)
             Prefs.setTrigger(this, pendingTrigger)
             Prefs.setTarget(this, pendingTarget)
@@ -198,6 +233,7 @@ class MainActivity : Activity() {
                 requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF)
             }
             SwitcherService.start(this)
+            if (Prefs.isLive(this) && !isLiveWallpaperActive()) openLiveWallpaperPicker()
         } else {
             SwitcherService.stop(this)
         }
@@ -220,7 +256,38 @@ class MainActivity : Activity() {
     private fun hasPendingChanges() =
         pendingRandom != Prefs.isRandom(this) ||
             pendingTrigger != Prefs.getTrigger(this) ||
-            pendingTarget != Prefs.getTarget(this)
+            pendingTarget != Prefs.getTarget(this) ||
+            pendingEffect != Prefs.getEffect(this)
+
+    private fun updateEffectSection() {
+        val live = pendingEffect != Prefs.EFFECT_NONE
+        findViewById<View>(R.id.targetSection).visibility = if (live) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.effectHint).visibility = if (live) View.VISIBLE else View.GONE
+    }
+
+    private fun isLiveWallpaperActive(): Boolean = try {
+        WallpaperManager.getInstance(this).wallpaperInfo?.packageName == packageName
+    } catch (e: Exception) {
+        false
+    }
+
+    private fun openLiveWallpaperPicker() {
+        toast("לחץ \"הגדר רקע\" כדי להפעיל את האפקטים")
+        try {
+            startActivity(
+                Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).putExtra(
+                    WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
+                    ComponentName(this, LiveWallpaper::class.java)
+                )
+            )
+        } catch (e: Exception) {
+            try {
+                startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))
+            } catch (_: Exception) {
+                toast("המכשיר לא תומך ברקע חי")
+            }
+        }
+    }
 
     private fun updateApplyButton() {
         val dirty = hasPendingChanges()
@@ -244,7 +311,15 @@ class MainActivity : Activity() {
             Prefs.TARGET_LOCK -> "מסך הנעילה"
             else -> "בית + נעילה"
         }
-        statusSub.text = if (on) "מתחלף $whenText · $whereText"
+        val effectName = when (Prefs.getEffect(this)) {
+            Prefs.EFFECT_FADE -> "דהייה"
+            Prefs.EFFECT_ZOOM -> "זום"
+            Prefs.EFFECT_SLIDE -> "החלקה"
+            Prefs.EFFECT_RANDOM -> "אפקט אקראי"
+            else -> null
+        }
+        val extra = if (effectName != null) "עם $effectName" else whereText
+        statusSub.text = if (on) "מתחלף $whenText · $extra"
         else "הפעל כדי שהרקע יתחלף אוטומטית"
     }
 

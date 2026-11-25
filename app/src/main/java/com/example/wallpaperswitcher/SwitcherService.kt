@@ -21,6 +21,7 @@ class SwitcherService : Service() {
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
+            if (Prefs.isLive(context)) return // ברקע חי ההחלפה נעשית שם, עם אנימציה
             val trigger = Prefs.getTrigger(context)
             when (intent.action) {
                 Intent.ACTION_SCREEN_OFF ->

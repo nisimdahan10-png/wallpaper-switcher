@@ -158,6 +158,35 @@
                 <TextView
                     style="@style/Label"
                     android:layout_marginTop="16dp"
+                    android:text="אפקט מעבר" />
+
+                <RadioGroup
+                    android:id="@+id/effectGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    <RadioButton android:id="@+id/effectNone" style="@style/Segment" android:textSize="13sp" android:text="ללא" />
+                    <RadioButton android:id="@+id/effectFade" style="@style/Segment" android:textSize="13sp" android:text="דהייה" />
+                    <RadioButton android:id="@+id/effectZoom" style="@style/Segment" android:textSize="13sp" android:text="זום" />
+                    <RadioButton android:id="@+id/effectSlide" style="@style/Segment" android:textSize="13sp" android:text="החלקה" />
+                    <RadioButton android:id="@+id/effectRandom" style="@style/Segment" android:textSize="13sp" android:text="אקראי" />
+                </RadioGroup>
+
+                <TextView
+                    android:id="@+id/effectHint"
+                    style="@style/Label"
+                    android:layout_marginTop="6dp"
+                    android:text="עם אפקט האפליקציה פועלת כ&quot;רקע חי&quot;: ההחלפה מיידית והאנימציה רצה כשהמסך נדלק. בחלק מהמכשירים מסך הנעילה לא מציג רקע חי." />
+
+                <LinearLayout
+                    android:id="@+id/targetSection"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                <TextView
+                    style="@style/Label"
+                    android:layout_marginTop="16dp"
                     android:text="איפה להחליף" />
 
                 <RadioGroup
@@ -169,6 +198,7 @@
                     <RadioButton android:id="@+id/targetLock" style="@style/Segment" android:text="מסך נעילה" />
                     <RadioButton android:id="@+id/targetBoth" style="@style/Segment" android:text="שניהם" />
                 </RadioGroup>
+                </LinearLayout>
 
                 <Switch
                     android:id="@+id/randomSwitch"
