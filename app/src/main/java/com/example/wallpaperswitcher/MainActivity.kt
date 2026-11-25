@@ -20,6 +20,7 @@ import android.view.View
 import android.widget.GridLayout
 import android.widget.ImageView
 import android.widget.RadioGroup
+import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
@@ -34,6 +35,8 @@ class MainActivity : Activity() {
     private lateinit var clearAll: TextView
     private lateinit var gridHint: TextView
     private lateinit var grid: GridLayout
+    private lateinit var gridScroll: ScrollView
+    private lateinit var emptyText: TextView
 
     private val loader = Executors.newFixedThreadPool(2)
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -54,9 +57,19 @@ class MainActivity : Activity() {
         clearAll = findViewById(R.id.clearAll)
         gridHint = findViewById(R.id.gridHint)
         grid = findViewById(R.id.imagesGrid)
+        gridScroll = findViewById(R.id.gridScroll)
+        emptyText = findViewById(R.id.emptyText)
 
-        // 3 עמודות: רוחב מסך פחות ריווחים (16+16 חיצוני, 16+16 כרטיס, 4×6 שוליים)
-        tileSize = (resources.displayMetrics.widthPixels - dp(16 * 4 + 4 * 6)) / 3
+        // 4 עמודות: רוחב מסך פחות ריווחים (16×4 חוץ וכרטיס, 4×2 ריפוד המלבן, 3×8 שוליים)
+        tileSize = (resources.displayMetrics.widthPixels - dp(16 * 4 + 4 * 2 + 3 * 8)) / 4
+
+        // גלילה בתוך המלבן בלי שהמסך כולו יזוז
+        gridScroll.setOnTouchListener { v, _ ->
+            v.parent.requestDisallowInterceptTouchEvent(true)
+            false
+        }
+
+        findViewById<View>(R.id.addButton).setOnClickListener { pickImages() }
 
         enabledSwitch.setOnCheckedChangeListener { _, checked ->
             if (updatingSwitch) return@setOnCheckedChangeListener
@@ -211,17 +224,25 @@ class MainActivity : Activity() {
 
         grid.removeAllViews()
         uris.forEachIndexed { i, s -> grid.addView(makeThumb(i, s, i == current)) }
-        grid.addView(makeAddTile())
 
-        countText.text = if (uris.isEmpty()) "התמונות שלי" else "התמונות שלי (${uris.size})"
-        clearAll.visibility = if (uris.isEmpty()) View.GONE else View.VISIBLE
-        gridHint.visibility = if (uris.isEmpty()) View.GONE else View.VISIBLE
+        // גובה המלבן: עד 2.5 שורות, ואם יש פחות תמונות – בדיוק כמה שצריך
+        val rows = (uris.size + 3) / 4
+        val rowH = tileSize + dp(6)
+        val boxH = (minOf(rows.toFloat(), 2.5f) * rowH).toInt() + dp(8)
+        gridScroll.layoutParams = gridScroll.layoutParams.apply { height = boxH }
+
+        val empty = uris.isEmpty()
+        gridScroll.visibility = if (empty) View.GONE else View.VISIBLE
+        emptyText.visibility = if (empty) View.VISIBLE else View.GONE
+        countText.text = if (empty) "התמונות שלי" else "התמונות שלי (${uris.size})"
+        clearAll.visibility = if (empty) View.GONE else View.VISIBLE
+        gridHint.visibility = if (empty) View.GONE else View.VISIBLE
     }
 
     private fun tileParams() = GridLayout.LayoutParams().apply {
         width = tileSize
         height = tileSize
-        setMargins(dp(4), dp(4), dp(4), dp(4))
+        setMargins(dp(3), dp(3), dp(3), dp(3))
     }
 
     private fun makeThumb(index: Int, uri: String, isCurrent: Boolean): View {
@@ -234,18 +255,6 @@ class MainActivity : Activity() {
         iv.setOnClickListener { confirmRemove(index) }
         loadThumb(uri, iv)
         return iv
-    }
-
-    private fun makeAddTile(): View {
-        val tv = TextView(this)
-        tv.layoutParams = tileParams()
-        tv.background = getDrawable(R.drawable.add_tile)
-        tv.gravity = Gravity.CENTER
-        tv.text = "+\nהוסף"
-        tv.textSize = 16f
-        tv.setTextColor(getColor(R.color.primary))
-        tv.setOnClickListener { pickImages() }
-        return tv
     }
 
     private fun loadThumb(uri: String, iv: ImageView) {
