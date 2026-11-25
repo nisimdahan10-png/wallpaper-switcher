@@ -2,47 +2,98 @@ package com.example.wallpaperswitcher
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.ext.SdkExtensions
 import android.provider.MediaStore
 import android.provider.Settings
-import android.widget.Button
-import android.widget.CheckBox
+import android.util.LruCache
+import android.view.Gravity
+import android.view.View
+import android.widget.GridLayout
+import android.widget.ImageView
 import android.widget.RadioGroup
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
+import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
 
-    private lateinit var countText: TextView
+    private lateinit var statusTitle: TextView
+    private lateinit var statusSub: TextView
     private lateinit var enabledSwitch: Switch
+    private lateinit var countText: TextView
+    private lateinit var clearAll: TextView
+    private lateinit var gridHint: TextView
+    private lateinit var grid: GridLayout
+
+    private val loader = Executors.newFixedThreadPool(2)
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val thumbCache = object : LruCache<String, Bitmap>(16 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap) = value.byteCount
+    }
+    private var tileSize = 0
+    private var updatingSwitch = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        countText = findViewById(R.id.countText)
+        statusTitle = findViewById(R.id.statusTitle)
+        statusSub = findViewById(R.id.statusSub)
         enabledSwitch = findViewById(R.id.enabledSwitch)
+        countText = findViewById(R.id.countText)
+        clearAll = findViewById(R.id.clearAll)
+        gridHint = findViewById(R.id.gridHint)
+        grid = findViewById(R.id.imagesGrid)
 
-        findViewById<Button>(R.id.pickButton).setOnClickListener { pickImages() }
+        // 3 עמודות: רוחב מסך פחות ריווחים (16+16 חיצוני, 16+16 כרטיס, 4×6 שוליים)
+        tileSize = (resources.displayMetrics.widthPixels - dp(16 * 4 + 4 * 6)) / 3
 
-        findViewById<Button>(R.id.clearButton).setOnClickListener {
-            Prefs.setUris(this, emptyList())
-            Prefs.setIndex(this, -1)
-            setEnabled(false)
-            refresh()
+        enabledSwitch.setOnCheckedChangeListener { _, checked ->
+            if (updatingSwitch) return@setOnCheckedChangeListener
+            if (checked && Prefs.getUris(this).isEmpty()) {
+                toast("קודם הוסף תמונות")
+                setSwitch(false)
+                return@setOnCheckedChangeListener
+            }
+            setEnabled(checked)
         }
 
-        findViewById<Button>(R.id.nowButton).setOnClickListener {
-            if (Prefs.getUris(this).isEmpty()) toast("קודם בחר תמונות")
-            else { WallpaperChanger.changeAsync(this); toast("מחליף רקע…") }
+        clearAll.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setMessage("להסיר את כל התמונות מהרשימה?")
+                .setPositiveButton("נקה הכל") { _, _ ->
+                    Prefs.getUris(this).forEach { releasePermission(it) }
+                    Prefs.setUris(this, emptyList())
+                    Prefs.setIndex(this, -1)
+                    setEnabled(false)
+                    refresh()
+                }
+                .setNegativeButton("ביטול", null)
+                .show()
         }
 
-        findViewById<Button>(R.id.batteryButton).setOnClickListener {
+        findViewById<View>(R.id.nowButton).setOnClickListener {
+            if (Prefs.getUris(this).isEmpty()) {
+                toast("קודם הוסף תמונות")
+            } else {
+                WallpaperChanger.changeAsync(this) {
+                    toast("הרקע הוחלף")
+                    refreshGrid()
+                }
+            }
+        }
+
+        findViewById<View>(R.id.batteryLink).setOnClickListener {
             try {
                 startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
             } catch (e: Exception) {
@@ -50,9 +101,9 @@ class MainActivity : Activity() {
             }
         }
 
-        val randomBox = findViewById<CheckBox>(R.id.randomBox)
-        randomBox.isChecked = Prefs.isRandom(this)
-        randomBox.setOnCheckedChangeListener { _, checked -> Prefs.setRandom(this, checked) }
+        val randomSwitch = findViewById<Switch>(R.id.randomSwitch)
+        randomSwitch.isChecked = Prefs.isRandom(this)
+        randomSwitch.setOnCheckedChangeListener { _, checked -> Prefs.setRandom(this, checked) }
 
         val triggerGroup = findViewById<RadioGroup>(R.id.triggerGroup)
         triggerGroup.check(
@@ -70,6 +121,7 @@ class MainActivity : Activity() {
                     else -> Prefs.TRIGGER_SCREEN_OFF
                 }
             )
+            refreshStatus()
         }
 
         val targetGroup = findViewById<RadioGroup>(R.id.targetGroup)
@@ -88,19 +140,23 @@ class MainActivity : Activity() {
                     else -> Prefs.TARGET_BOTH
                 }
             )
-        }
-
-        enabledSwitch.setOnCheckedChangeListener { _, checked ->
-            if (checked && Prefs.getUris(this).isEmpty()) {
-                toast("קודם בחר תמונות")
-                enabledSwitch.isChecked = false
-                return@setOnCheckedChangeListener
-            }
-            setEnabled(checked)
+            refreshStatus()
         }
 
         refresh()
     }
+
+    override fun onResume() {
+        super.onResume()
+        refreshGrid() // הרקע אולי התחלף בזמן שהמסך היה כבוי
+    }
+
+    override fun onDestroy() {
+        loader.shutdownNow()
+        super.onDestroy()
+    }
+
+    // ---------- מצב הפעלה ----------
 
     private fun setEnabled(on: Boolean) {
         Prefs.setEnabled(this, on)
@@ -112,14 +168,151 @@ class MainActivity : Activity() {
         } else {
             SwitcherService.stop(this)
         }
-        if (enabledSwitch.isChecked != on) enabledSwitch.isChecked = on
+        setSwitch(on)
+        refreshStatus()
     }
+
+    private fun setSwitch(on: Boolean) {
+        updatingSwitch = true
+        enabledSwitch.isChecked = on
+        updatingSwitch = false
+    }
+
+    private fun refresh() {
+        setSwitch(Prefs.isEnabled(this))
+        refreshStatus()
+        refreshGrid()
+    }
+
+    private fun refreshStatus() {
+        val on = Prefs.isEnabled(this)
+        statusTitle.text = if (on) "פעיל" else "כבוי"
+        statusTitle.setTextColor(getColor(if (on) R.color.on_green else R.color.text_secondary))
+
+        val whenText = when (Prefs.getTrigger(this)) {
+            Prefs.TRIGGER_SCREEN_ON -> "בכל הדלקת מסך"
+            Prefs.TRIGGER_BOTH -> "בכל כיבוי והדלקה"
+            else -> "בכל כיבוי מסך"
+        }
+        val whereText = when (Prefs.getTarget(this)) {
+            Prefs.TARGET_HOME -> "מסך הבית"
+            Prefs.TARGET_LOCK -> "מסך הנעילה"
+            else -> "בית + נעילה"
+        }
+        statusSub.text = if (on) "מתחלף $whenText · $whereText"
+        else "הפעל כדי שהרקע יתחלף אוטומטית"
+    }
+
+    // ---------- רשת התמונות ----------
+
+    private fun refreshGrid() {
+        val uris = Prefs.getUris(this)
+        val current = Prefs.getIndex(this)
+
+        grid.removeAllViews()
+        uris.forEachIndexed { i, s -> grid.addView(makeThumb(i, s, i == current)) }
+        grid.addView(makeAddTile())
+
+        countText.text = if (uris.isEmpty()) "התמונות שלי" else "התמונות שלי (${uris.size})"
+        clearAll.visibility = if (uris.isEmpty()) View.GONE else View.VISIBLE
+        gridHint.visibility = if (uris.isEmpty()) View.GONE else View.VISIBLE
+    }
+
+    private fun tileParams() = GridLayout.LayoutParams().apply {
+        width = tileSize
+        height = tileSize
+        setMargins(dp(4), dp(4), dp(4), dp(4))
+    }
+
+    private fun makeThumb(index: Int, uri: String, isCurrent: Boolean): View {
+        val iv = ImageView(this)
+        iv.layoutParams = tileParams()
+        iv.scaleType = ImageView.ScaleType.CENTER_CROP
+        iv.background = getDrawable(R.drawable.thumb_bg)
+        iv.clipToOutline = true
+        if (isCurrent) iv.foreground = getDrawable(R.drawable.thumb_current)
+        iv.setOnClickListener { confirmRemove(index) }
+        loadThumb(uri, iv)
+        return iv
+    }
+
+    private fun makeAddTile(): View {
+        val tv = TextView(this)
+        tv.layoutParams = tileParams()
+        tv.background = getDrawable(R.drawable.add_tile)
+        tv.gravity = Gravity.CENTER
+        tv.text = "+\nהוסף"
+        tv.textSize = 16f
+        tv.setTextColor(getColor(R.color.primary))
+        tv.setOnClickListener { pickImages() }
+        return tv
+    }
+
+    private fun loadThumb(uri: String, iv: ImageView) {
+        thumbCache.get(uri)?.let { iv.setImageBitmap(it); return }
+        iv.tag = uri
+        loader.execute {
+            val bmp = decodeThumb(Uri.parse(uri))
+            if (bmp != null) thumbCache.put(uri, bmp)
+            mainHandler.post { if (iv.tag == uri && bmp != null) iv.setImageBitmap(bmp) }
+        }
+    }
+
+    private fun decodeThumb(uri: Uri): Bitmap? = try {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= tileSize && bounds.outHeight / (sample * 2) >= tileSize) {
+            sample *= 2
+        }
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
+    } catch (e: Exception) {
+        null
+    }
+
+    private fun confirmRemove(index: Int) {
+        AlertDialog.Builder(this)
+            .setMessage("להסיר את התמונה מהרשימה?")
+            .setPositiveButton("הסר") { _, _ -> removeAt(index) }
+            .setNegativeButton("ביטול", null)
+            .show()
+    }
+
+    private fun removeAt(index: Int) {
+        val list = Prefs.getUris(this).toMutableList()
+        if (index !in list.indices) return
+        releasePermission(list.removeAt(index))
+        Prefs.setUris(this, list)
+
+        val current = Prefs.getIndex(this)
+        if (index <= current) Prefs.setIndex(this, current - 1)
+
+        if (list.isEmpty() && Prefs.isEnabled(this)) setEnabled(false)
+        refreshGrid()
+    }
+
+    private fun releasePermission(uri: String) {
+        try {
+            contentResolver.releasePersistableUriPermission(
+                Uri.parse(uri), Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        } catch (_: Exception) { }
+    }
+
+    // ---------- בחירת תמונות ----------
 
     /** בוחר התמונות החדש של אנדרואיד – עם תיבת סימון על כל תמונה */
     private fun photoPickerAvailable(): Boolean =
         Build.VERSION.SDK_INT >= 33 ||
             (Build.VERSION.SDK_INT >= 30 &&
                 SdkExtensions.getExtensionVersion(Build.VERSION_CODES.R) >= 2)
+
+    private fun documentPickerIntent() = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+        addCategory(Intent.CATEGORY_OPENABLE)
+        type = "image/*"
+        putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+    }
 
     private fun pickImages() {
         val intent = if (photoPickerAvailable()) {
@@ -129,24 +322,14 @@ class MainActivity : Activity() {
             }
         } else {
             toast("לבחירת כמה תמונות: לחיצה ארוכה על הראשונה, ואז נגיעה בשאר")
-            Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = "image/*"
-                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-            }
+            documentPickerIntent()
         }
         try {
             @Suppress("DEPRECATION")
             startActivityForResult(intent, REQ_PICK)
         } catch (e: Exception) {
-            // גיבוי אם בוחר התמונות החדש לא זמין במכשיר
-            val fallback = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = "image/*"
-                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-            }
             @Suppress("DEPRECATION")
-            startActivityForResult(fallback, REQ_PICK)
+            startActivityForResult(documentPickerIntent(), REQ_PICK)
         }
     }
 
@@ -161,24 +344,21 @@ class MainActivity : Activity() {
         } ?: data.data?.let { picked.add(it) }
 
         val list = Prefs.getUris(this).toMutableList()
+        var added = 0
         for (uri in picked) {
             try {
-                // שומר הרשאת קריאה קבועה כדי שהתמונה תהיה זמינה גם אחרי הפעלה מחדש
+                // הרשאת קריאה קבועה – כדי שהתמונה תישאר זמינה גם אחרי הפעלה מחדש
                 contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             } catch (_: SecurityException) { }
             val s = uri.toString()
-            if (s !in list) list.add(s)
+            if (s !in list) { list.add(s); added++ }
         }
         Prefs.setUris(this, list)
-        toast("נוספו ${picked.size} תמונות")
-        refresh()
+        if (added > 0) toast("נוספו $added תמונות")
+        refreshGrid()
     }
 
-    private fun refresh() {
-        val n = Prefs.getUris(this).size
-        countText.text = if (n == 0) "לא נבחרו תמונות" else "נבחרו $n תמונות"
-        enabledSwitch.isChecked = Prefs.isEnabled(this)
-    }
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 

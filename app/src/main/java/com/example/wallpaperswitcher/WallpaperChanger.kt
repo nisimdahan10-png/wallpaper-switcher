@@ -5,6 +5,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import java.util.concurrent.Executors
 import kotlin.random.Random
@@ -14,7 +16,7 @@ object WallpaperChanger {
     private const val TAG = "WallpaperChanger"
     private val executor = Executors.newSingleThreadExecutor()
 
-    fun changeAsync(context: Context) {
+    fun changeAsync(context: Context, onDone: (() -> Unit)? = null) {
         val app = context.applicationContext
         executor.execute {
             try {
@@ -22,6 +24,7 @@ object WallpaperChanger {
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to change wallpaper", e)
             }
+            onDone?.let { Handler(Looper.getMainLooper()).post(it) }
         }
     }
 
