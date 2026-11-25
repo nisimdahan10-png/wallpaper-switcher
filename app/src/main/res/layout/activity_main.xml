@@ -178,6 +178,18 @@
                     android:text="סדר אקראי"
                     android:textColor="@color/text"
                     android:textSize="15sp" />
+
+                <Button
+                    android:id="@+id/applyButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="46dp"
+                    android:layout_marginTop="16dp"
+                    android:background="@drawable/btn_apply"
+                    android:stateListAnimator="@null"
+                    android:text="החל"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
             </LinearLayout>
 
             <TextView

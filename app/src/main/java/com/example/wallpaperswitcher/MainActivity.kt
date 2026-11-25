@@ -17,6 +17,7 @@ import android.provider.Settings
 import android.util.LruCache
 import android.view.Gravity
 import android.view.View
+import android.widget.Button
 import android.widget.GridLayout
 import android.widget.ImageView
 import android.widget.RadioGroup
@@ -45,6 +46,10 @@ class MainActivity : Activity() {
     }
     private var tileSize = 0
     private var updatingSwitch = false
+    private var pendingRandom = false
+    private var pendingTrigger = 0
+    private var pendingTarget = 0
+    private lateinit var applyButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -114,47 +119,62 @@ class MainActivity : Activity() {
             }
         }
 
+        // הגדרות ממתינות – נשמרות רק בלחיצה על "החל"
+        pendingRandom = Prefs.isRandom(this)
+        pendingTrigger = Prefs.getTrigger(this)
+        pendingTarget = Prefs.getTarget(this)
+        applyButton = findViewById(R.id.applyButton)
+
         val randomSwitch = findViewById<Switch>(R.id.randomSwitch)
-        randomSwitch.isChecked = Prefs.isRandom(this)
-        randomSwitch.setOnCheckedChangeListener { _, checked -> Prefs.setRandom(this, checked) }
+        randomSwitch.isChecked = pendingRandom
+        randomSwitch.setOnCheckedChangeListener { _, checked ->
+            pendingRandom = checked
+            updateApplyButton()
+        }
 
         val triggerGroup = findViewById<RadioGroup>(R.id.triggerGroup)
         triggerGroup.check(
-            when (Prefs.getTrigger(this)) {
+            when (pendingTrigger) {
                 Prefs.TRIGGER_SCREEN_ON -> R.id.triggerOn
                 Prefs.TRIGGER_BOTH -> R.id.triggerBoth
                 else -> R.id.triggerOff
             }
         )
         triggerGroup.setOnCheckedChangeListener { _, id ->
-            Prefs.setTrigger(
-                this, when (id) {
-                    R.id.triggerOn -> Prefs.TRIGGER_SCREEN_ON
-                    R.id.triggerBoth -> Prefs.TRIGGER_BOTH
-                    else -> Prefs.TRIGGER_SCREEN_OFF
-                }
-            )
-            refreshStatus()
+            pendingTrigger = when (id) {
+                R.id.triggerOn -> Prefs.TRIGGER_SCREEN_ON
+                R.id.triggerBoth -> Prefs.TRIGGER_BOTH
+                else -> Prefs.TRIGGER_SCREEN_OFF
+            }
+            updateApplyButton()
         }
 
         val targetGroup = findViewById<RadioGroup>(R.id.targetGroup)
         targetGroup.check(
-            when (Prefs.getTarget(this)) {
+            when (pendingTarget) {
                 Prefs.TARGET_HOME -> R.id.targetHome
                 Prefs.TARGET_LOCK -> R.id.targetLock
                 else -> R.id.targetBoth
             }
         )
         targetGroup.setOnCheckedChangeListener { _, id ->
-            Prefs.setTarget(
-                this, when (id) {
-                    R.id.targetHome -> Prefs.TARGET_HOME
-                    R.id.targetLock -> Prefs.TARGET_LOCK
-                    else -> Prefs.TARGET_BOTH
-                }
-            )
-            refreshStatus()
+            pendingTarget = when (id) {
+                R.id.targetHome -> Prefs.TARGET_HOME
+                R.id.targetLock -> Prefs.TARGET_LOCK
+                else -> Prefs.TARGET_BOTH
+            }
+            updateApplyButton()
         }
+
+        applyButton.setOnClickListener {
+            Prefs.setRandom(this, pendingRandom)
+            Prefs.setTrigger(this, pendingTrigger)
+            Prefs.setTarget(this, pendingTarget)
+            refreshStatus()
+            updateApplyButton()
+            toast("ההגדרות נשמרו")
+        }
+        updateApplyButton()
 
         refresh()
     }
@@ -195,6 +215,18 @@ class MainActivity : Activity() {
         setSwitch(Prefs.isEnabled(this))
         refreshStatus()
         refreshGrid()
+    }
+
+    private fun hasPendingChanges() =
+        pendingRandom != Prefs.isRandom(this) ||
+            pendingTrigger != Prefs.getTrigger(this) ||
+            pendingTarget != Prefs.getTarget(this)
+
+    private fun updateApplyButton() {
+        val dirty = hasPendingChanges()
+        applyButton.isEnabled = dirty
+        applyButton.alpha = if (dirty) 1f else 0.4f
+        applyButton.text = if (dirty) "החל" else "ההגדרות שמורות"
     }
 
     private fun refreshStatus() {
