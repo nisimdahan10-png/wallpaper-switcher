@@ -6,6 +6,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.ext.SdkExtensions
+import android.provider.MediaStore
 import android.provider.Settings
 import android.widget.Button
 import android.widget.CheckBox
@@ -113,14 +115,39 @@ class MainActivity : Activity() {
         if (enabledSwitch.isChecked != on) enabledSwitch.isChecked = on
     }
 
+    /** בוחר התמונות החדש של אנדרואיד – עם תיבת סימון על כל תמונה */
+    private fun photoPickerAvailable(): Boolean =
+        Build.VERSION.SDK_INT >= 33 ||
+            (Build.VERSION.SDK_INT >= 30 &&
+                SdkExtensions.getExtensionVersion(Build.VERSION_CODES.R) >= 2)
+
     private fun pickImages() {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "image/*"
-            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        val intent = if (photoPickerAvailable()) {
+            Intent(MediaStore.ACTION_PICK_IMAGES).apply {
+                type = "image/*"
+                putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit())
+            }
+        } else {
+            toast("לבחירת כמה תמונות: לחיצה ארוכה על הראשונה, ואז נגיעה בשאר")
+            Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "image/*"
+                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            }
         }
-        @Suppress("DEPRECATION")
-        startActivityForResult(intent, REQ_PICK)
+        try {
+            @Suppress("DEPRECATION")
+            startActivityForResult(intent, REQ_PICK)
+        } catch (e: Exception) {
+            // גיבוי אם בוחר התמונות החדש לא זמין במכשיר
+            val fallback = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "image/*"
+                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            }
+            @Suppress("DEPRECATION")
+            startActivityForResult(fallback, REQ_PICK)
+        }
     }
 
     @Deprecated("Deprecated in Java")
