@@ -183,9 +183,6 @@ class MainActivity : Activity() {
 
         findViewById<View>(R.id.effectPicker).setOnClickListener { chooseEffect() }
         updateEffectSection()
-            updateApplyButton()
-        }
-        updateEffectSection()
 
         applyButton.setOnClickListener {
             val wasLive = Prefs.isLive(this)
