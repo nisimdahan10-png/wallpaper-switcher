@@ -28,23 +28,25 @@ object Prefs {
     const val EFFECT_FLIP = 9
     const val EFFECT_BLINDS = 10
 
-    /** כל האפקטים האמיתיים (בלי "ללא" ו"אקראי") עם השמות שלהם */
+    /** כל האפקטים האמיתיים (בלי "ללא" ו"אקראי") עם השם שלהם */
     val EFFECTS = listOf(
-        EFFECT_FADE to "דהייה",
-        EFFECT_ZOOM to "זום",
-        EFFECT_SLIDE to "החלקה",
-        EFFECT_ROTATE to "סיבוב",
-        EFFECT_CIRCLE to "עיגול נפתח",
-        EFFECT_WIPE to "וילון",
-        EFFECT_BLUR to "טשטוש לחדות",
-        EFFECT_FLIP to "היפוך תלת-ממדי",
-        EFFECT_BLINDS to "תריסים",
+        EFFECT_FADE to R.string.effect_fade,
+        EFFECT_ZOOM to R.string.effect_zoom,
+        EFFECT_SLIDE to R.string.effect_slide,
+        EFFECT_ROTATE to R.string.effect_rotate,
+        EFFECT_CIRCLE to R.string.effect_circle,
+        EFFECT_WIPE to R.string.effect_wipe,
+        EFFECT_BLUR to R.string.effect_blur,
+        EFFECT_FLIP to R.string.effect_flip,
+        EFFECT_BLINDS to R.string.effect_blinds,
     )
 
     /** כל האפשרויות לבחירה במסך */
-    val EFFECT_CHOICES = listOf(EFFECT_NONE to "ללא אפקט") + EFFECTS + listOf(EFFECT_RANDOM to "אקראי (כל פעם אחר)")
+    val EFFECT_CHOICES = listOf(EFFECT_NONE to R.string.effect_none) + EFFECTS +
+        listOf(EFFECT_RANDOM to R.string.effect_random)
 
-    fun effectName(e: Int): String = EFFECT_CHOICES.firstOrNull { it.first == e }?.second ?: "ללא אפקט"
+    fun effectName(c: Context, e: Int): String =
+        c.getString(EFFECT_CHOICES.firstOrNull { it.first == e }?.second ?: R.string.effect_none)
 
     private fun sp(c: Context): SharedPreferences =
         c.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -80,4 +82,8 @@ object Prefs {
     fun setEffect(c: Context, v: Int) = sp(c).edit().putInt("effect", v).apply()
     /** רקע חי (עם אנימציה) פועל במסך הבית – לכן לא במצב "רק מסך נעילה" */
     fun isLive(c: Context) = getEffect(c) != EFFECT_NONE && getTarget(c) != TARGET_LOCK
+
+    /** שפה שנבחרה באפליקציה ("" = לפי המכשיר) */
+    fun getLang(c: Context) = sp(c).getString("lang", "") ?: ""
+    fun setLang(c: Context, v: String) = sp(c).edit().putString("lang", v).apply()
 }

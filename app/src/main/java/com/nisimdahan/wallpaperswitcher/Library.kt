@@ -51,11 +51,11 @@ object Library {
     }
 
     /** שם קריא לתיקייה, למשל "Camera" */
-    fun folderName(treeUri: String): String = try {
+    fun folderName(c: Context, treeUri: String): String = try {
         val id = DocumentsContract.getTreeDocumentId(Uri.parse(treeUri))
-        id.substringAfter(':').substringAfterLast('/').ifBlank { "אחסון פנימי" }
+        id.substringAfter(':').substringAfterLast('/').ifBlank { c.getString(R.string.internal_storage) }
     } catch (e: Exception) {
-        "תיקייה"
+        c.getString(R.string.folder)
     }
 
     fun removeManual(c: Context, uri: String) {

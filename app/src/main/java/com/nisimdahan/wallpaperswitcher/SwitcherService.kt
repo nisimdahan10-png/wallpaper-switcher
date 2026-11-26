@@ -63,6 +63,8 @@ class SwitcherService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun attachBaseContext(base: Context) = super.attachBaseContext(Lang.wrap(base))
+
     private fun buildNotification(): Notification {
         val openApp = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
@@ -71,7 +73,7 @@ class SwitcherService : Service() {
         val builder = if (Build.VERSION.SDK_INT >= 26) {
             val nm = getSystemService(NotificationManager::class.java)
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "החלפת רקעים", NotificationManager.IMPORTANCE_MIN)
+                NotificationChannel(CHANNEL_ID, getString(R.string.notif_channel), NotificationManager.IMPORTANCE_MIN)
             )
             Notification.Builder(this, CHANNEL_ID)
         } else {
@@ -80,8 +82,8 @@ class SwitcherService : Service() {
         }
         return builder
             .setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle("מחליף רקעים פעיל")
-            .setContentText("הרקע יתחלף בכל כיבוי/הדלקה של המסך")
+            .setContentTitle(getString(R.string.notif_title))
+            .setContentText(getString(R.string.notif_text))
             .setContentIntent(openApp)
             .setOngoing(true)
             .build()

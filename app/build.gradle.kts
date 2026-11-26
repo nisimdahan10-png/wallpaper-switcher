@@ -15,8 +15,8 @@ android {
         applicationId = "com.nisimdahan.wallpaperswitcher"
         minSdk = 24
         targetSdk = 36
-        versionCode = 11
-        versionName = "3.1"
+        versionCode = 12
+        versionName = "3.2"
     }
 
     signingConfigs {
