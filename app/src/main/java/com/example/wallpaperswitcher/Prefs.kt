@@ -21,6 +21,30 @@ object Prefs {
     const val EFFECT_ZOOM = 2
     const val EFFECT_SLIDE = 3
     const val EFFECT_RANDOM = 4
+    const val EFFECT_ROTATE = 5
+    const val EFFECT_CIRCLE = 6
+    const val EFFECT_WIPE = 7
+    const val EFFECT_BLUR = 8
+    const val EFFECT_FLIP = 9
+    const val EFFECT_BLINDS = 10
+
+    /** כל האפקטים האמיתיים (בלי "ללא" ו"אקראי") עם השמות שלהם */
+    val EFFECTS = listOf(
+        EFFECT_FADE to "דהייה",
+        EFFECT_ZOOM to "זום",
+        EFFECT_SLIDE to "החלקה",
+        EFFECT_ROTATE to "סיבוב",
+        EFFECT_CIRCLE to "עיגול נפתח",
+        EFFECT_WIPE to "וילון",
+        EFFECT_BLUR to "טשטוש לחדות",
+        EFFECT_FLIP to "היפוך תלת-ממדי",
+        EFFECT_BLINDS to "תריסים",
+    )
+
+    /** כל האפשרויות לבחירה במסך */
+    val EFFECT_CHOICES = listOf(EFFECT_NONE to "ללא אפקט") + EFFECTS + listOf(EFFECT_RANDOM to "אקראי (כל פעם אחר)")
+
+    fun effectName(e: Int): String = EFFECT_CHOICES.firstOrNull { it.first == e }?.second ?: "ללא אפקט"
 
     private fun sp(c: Context): SharedPreferences =
         c.getSharedPreferences("settings", Context.MODE_PRIVATE)

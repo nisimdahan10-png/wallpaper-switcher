@@ -230,17 +230,16 @@
                     android:layout_marginTop="16dp"
                     android:text="אפקט מעבר" />
 
-                <RadioGroup
-                    android:id="@+id/effectGroup"
+<TextView
+                    android:id="@+id/effectPicker"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-                    <RadioButton android:id="@+id/effectNone" style="@style/Segment" android:textSize="13sp" android:text="ללא" />
-                    <RadioButton android:id="@+id/effectFade" style="@style/Segment" android:textSize="13sp" android:text="דהייה" />
-                    <RadioButton android:id="@+id/effectZoom" style="@style/Segment" android:textSize="13sp" android:text="זום" />
-                    <RadioButton android:id="@+id/effectSlide" style="@style/Segment" android:textSize="13sp" android:text="החלקה" />
-                    <RadioButton android:id="@+id/effectRandom" style="@style/Segment" android:textSize="13sp" android:text="אקראי" />
-                </RadioGroup>
+                    android:layout_height="44dp"
+                    android:background="@drawable/select_bg"
+                    android:gravity="center_vertical|start"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:textColor="@color/text"
+                    android:textSize="15sp" />
 
                 <TextView
                     android:id="@+id/effectHint"

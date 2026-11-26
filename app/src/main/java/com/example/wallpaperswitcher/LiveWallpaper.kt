@@ -5,10 +5,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Bitmap
+import android.graphics.Camera
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.Path
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -32,6 +34,10 @@ class LiveWallpaper : WallpaperService() {
         private val loader = Executors.newSingleThreadExecutor()
         private val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
         private val matrix = Matrix()
+        private val matrix3d = Matrix()
+        private val camera = Camera().apply { setLocation(0f, 0f, -24f) }
+        private val clip = Path()
+        private var blurred: Bitmap? = null // גרסה מטושטשת של התמונה החדשה (לאפקט טשטוש)
 
         private var current: Bitmap? = null
         private var previous: Bitmap? = null
@@ -148,10 +154,11 @@ class LiveWallpaper : WallpaperService() {
             previous = current
             current = next
             effect = when (val e = Prefs.getEffect(applicationContext)) {
-                Prefs.EFFECT_RANDOM -> Random.nextInt(Prefs.EFFECT_FADE, Prefs.EFFECT_SLIDE + 1)
+                Prefs.EFFECT_RANDOM -> Prefs.EFFECTS[Random.nextInt(Prefs.EFFECTS.size)].first
                 Prefs.EFFECT_NONE -> Prefs.EFFECT_FADE
                 else -> e
             }
+            blurred = if (effect == Prefs.EFFECT_BLUR) makeBlurred(next) else null
             animStart = SystemClock.uptimeMillis()
             animating = true
             handler.removeCallbacks(frame)
@@ -172,27 +179,14 @@ class LiveWallpaper : WallpaperService() {
             val cur = current
             val prev = previous
             val t = if (animating)
-                ((SystemClock.uptimeMillis() - animStart).toFloat() / DURATION_MS).coerceIn(0f, 1f)
+                ((SystemClock.uptimeMillis() - animStart).toFloat() / durationFor(effect)).coerceIn(0f, 1f)
             else 1f
             val e = 1f - (1f - t) * (1f - t) * (1f - t) // האטה בסוף – נראה חלק
 
             try {
                 canvas.drawColor(Color.BLACK)
                 if (animating && prev != null && cur != null) {
-                    when (effect) {
-                        Prefs.EFFECT_ZOOM -> {
-                            drawBitmap(canvas, prev, 1f + 0.08f * e, 0f, 255)
-                            drawBitmap(canvas, cur, 1.25f - 0.25f * e, 0f, (255 * e).toInt())
-                        }
-                        Prefs.EFFECT_SLIDE -> {
-                            drawBitmap(canvas, prev, 1f, -surfaceW * e, 255)
-                            drawBitmap(canvas, cur, 1f, surfaceW * (1f - e), 255)
-                        }
-                        else -> { // דהייה
-                            drawBitmap(canvas, prev, 1f, 0f, 255)
-                            drawBitmap(canvas, cur, 1f, 0f, (255 * e).toInt())
-                        }
-                    }
+                    drawTransition(canvas, prev, cur, t, e)
                 } else if (cur != null) {
                     drawBitmap(canvas, cur, 1f, 0f, 255)
                 }
@@ -203,7 +197,104 @@ class LiveWallpaper : WallpaperService() {
             if (animating && t >= 1f) {
                 animating = false
                 previous = null
+                blurred = null
             }
+        }
+
+        private fun ease(x: Float): Float {
+            val c = x.coerceIn(0f, 1f)
+            return 1f - (1f - c) * (1f - c) * (1f - c)
+        }
+
+        /** t = התקדמות לינארית 0..1, e = התקדמות עם האטה */
+        private fun drawTransition(canvas: Canvas, prev: Bitmap, cur: Bitmap, t: Float, e: Float) {
+            val w = surfaceW.toFloat()
+            val h = surfaceH.toFloat()
+            when (effect) {
+                Prefs.EFFECT_ZOOM -> {
+                    drawBitmap(canvas, prev, 1f + 0.08f * e, 0f, 255)
+                    drawBitmap(canvas, cur, 1.25f - 0.25f * e, 0f, (255 * e).toInt())
+                }
+                Prefs.EFFECT_SLIDE -> {
+                    drawBitmap(canvas, prev, 1f, -w * e, 255)
+                    drawBitmap(canvas, cur, 1f, w * (1f - e), 255)
+                }
+                Prefs.EFFECT_ROTATE -> {
+                    drawBitmap(canvas, prev, 1f, 0f, 255)
+                    canvas.save()
+                    canvas.rotate(-15f * (1f - e), w / 2f, h / 2f)
+                    drawBitmap(canvas, cur, 1.35f - 0.35f * e, 0f, (255 * e).toInt())
+                    canvas.restore()
+                }
+                Prefs.EFFECT_CIRCLE -> {
+                    drawBitmap(canvas, prev, 1f, 0f, 255)
+                    val r = Math.hypot(w.toDouble(), h.toDouble()).toFloat() / 2f * e
+                    clip.reset()
+                    clip.addCircle(w / 2f, h / 2f, r, Path.Direction.CW)
+                    canvas.save()
+                    canvas.clipPath(clip)
+                    drawBitmap(canvas, cur, 1.1f - 0.1f * e, 0f, 255)
+                    canvas.restore()
+                }
+                Prefs.EFFECT_WIPE -> {
+                    drawBitmap(canvas, prev, 1f, 0f, 255)
+                    canvas.save()
+                    canvas.clipRect(0f, 0f, w, h * e)
+                    drawBitmap(canvas, cur, 1f, 0f, 255)
+                    canvas.restore()
+                }
+                Prefs.EFFECT_BLUR -> {
+                    // קודם התמונה החדשה מופיעה מטושטשת, ואז מתחדדת
+                    drawBitmap(canvas, prev, 1f, 0f, 255)
+                    blurred?.let { drawBitmap(canvas, it, 1.05f, 0f, (255 * ease(t / 0.4f)).toInt()) }
+                    drawBitmap(canvas, cur, 1f, 0f, (255 * ease((t - 0.35f) / 0.65f)).toInt())
+                }
+                Prefs.EFFECT_FLIP -> {
+                    // חצי ראשון: הישנה מסתובבת הצידה, חצי שני: החדשה מסתובבת פנימה
+                    if (t < 0.5f) drawFlipped(canvas, prev, 180f * t)
+                    else drawFlipped(canvas, cur, 180f * t - 180f)
+                }
+                Prefs.EFFECT_BLINDS -> {
+                    drawBitmap(canvas, prev, 1f, 0f, 255)
+                    val n = 8
+                    val strip = h / n
+                    clip.reset()
+                    for (i in 0 until n) {
+                        val local = ease((t - i * 0.04f) / 0.72f)
+                        val top = i * strip
+                        clip.addRect(0f, top, w, top + strip * local + 1f, Path.Direction.CW)
+                    }
+                    canvas.save()
+                    canvas.clipPath(clip)
+                    drawBitmap(canvas, cur, 1f, 0f, 255)
+                    canvas.restore()
+                }
+                else -> { // דהייה
+                    drawBitmap(canvas, prev, 1f, 0f, 255)
+                    drawBitmap(canvas, cur, 1f, 0f, (255 * e).toInt())
+                }
+            }
+        }
+
+        private fun drawFlipped(canvas: Canvas, b: Bitmap, angle: Float) {
+            camera.save()
+            camera.rotateY(angle)
+            camera.getMatrix(matrix3d)
+            camera.restore()
+            matrix3d.preTranslate(-surfaceW / 2f, -surfaceH / 2f)
+            matrix3d.postTranslate(surfaceW / 2f, surfaceH / 2f)
+            canvas.save()
+            canvas.concat(matrix3d)
+            drawBitmap(canvas, b, 1f, 0f, 255)
+            canvas.restore()
+        }
+
+        /** טשטוש זול: מקטינים מאוד ומגדילים חזרה עם החלקה */
+        private fun makeBlurred(b: Bitmap): Bitmap? = try {
+            val small = Bitmap.createScaledBitmap(b, maxOf(1, b.width / 12), maxOf(1, b.height / 12), true)
+            Bitmap.createScaledBitmap(small, maxOf(1, b.width / 40), maxOf(1, b.height / 40), true)
+        } catch (e: Exception) {
+            null
         }
 
         /** מצייר תמונה ממורכזת שממלאת את המסך (כמו center-crop) */
@@ -218,6 +309,9 @@ class LiveWallpaper : WallpaperService() {
     }
 
     companion object {
-        private const val DURATION_MS = 700f
+        private fun durationFor(effect: Int) = when (effect) {
+            Prefs.EFFECT_FLIP, Prefs.EFFECT_BLINDS, Prefs.EFFECT_BLUR -> 900f
+            else -> 700f
+        }
     }
 }

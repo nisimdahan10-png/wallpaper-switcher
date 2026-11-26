@@ -181,25 +181,8 @@ class MainActivity : Activity() {
             updateApplyButton()
         }
 
-        val effectGroup = findViewById<RadioGroup>(R.id.effectGroup)
-        effectGroup.check(
-            when (pendingEffect) {
-                Prefs.EFFECT_FADE -> R.id.effectFade
-                Prefs.EFFECT_ZOOM -> R.id.effectZoom
-                Prefs.EFFECT_SLIDE -> R.id.effectSlide
-                Prefs.EFFECT_RANDOM -> R.id.effectRandom
-                else -> R.id.effectNone
-            }
-        )
-        effectGroup.setOnCheckedChangeListener { _, id ->
-            pendingEffect = when (id) {
-                R.id.effectFade -> Prefs.EFFECT_FADE
-                R.id.effectZoom -> Prefs.EFFECT_ZOOM
-                R.id.effectSlide -> Prefs.EFFECT_SLIDE
-                R.id.effectRandom -> Prefs.EFFECT_RANDOM
-                else -> Prefs.EFFECT_NONE
-            }
-            updateEffectSection()
+        findViewById<View>(R.id.effectPicker).setOnClickListener { chooseEffect() }
+        updateEffectSection()
             updateApplyButton()
         }
         updateEffectSection()
@@ -301,7 +284,23 @@ class MainActivity : Activity() {
             pendingTarget != Prefs.getTarget(this) ||
             pendingEffect != Prefs.getEffect(this)
 
+    private fun chooseEffect() {
+        val choices = Prefs.EFFECT_CHOICES
+        val checked = choices.indexOfFirst { it.first == pendingEffect }.coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("אפקט מעבר")
+            .setSingleChoiceItems(choices.map { it.second }.toTypedArray(), checked) { d, which ->
+                pendingEffect = choices[which].first
+                updateEffectSection()
+                updateApplyButton()
+                d.dismiss()
+            }
+            .setNegativeButton("ביטול", null)
+            .show()
+    }
+
     private fun updateEffectSection() {
+        findViewById<TextView>(R.id.effectPicker).text = "${Prefs.effectName(pendingEffect)}   ▾"
         val effect = pendingEffect != Prefs.EFFECT_NONE
         val hint = findViewById<TextView>(R.id.effectHint)
         hint.visibility = if (effect) View.VISIBLE else View.GONE
@@ -358,13 +357,8 @@ class MainActivity : Activity() {
             Prefs.TARGET_LOCK -> "מסך הנעילה"
             else -> "בית + נעילה"
         }
-        val effectName = when (Prefs.getEffect(this)) {
-            Prefs.EFFECT_FADE -> "דהייה"
-            Prefs.EFFECT_ZOOM -> "זום"
-            Prefs.EFFECT_SLIDE -> "החלקה"
-            Prefs.EFFECT_RANDOM -> "אפקט אקראי"
-            else -> null
-        }
+        val effectName = if (Prefs.getEffect(this) == Prefs.EFFECT_NONE) null
+        else Prefs.effectName(Prefs.getEffect(this)).substringBefore(" (")
         val extra = if (effectName != null && Prefs.isLive(this)) "$whereText · $effectName" else whereText
         statusSub.text = if (on) "מתחלף $whenText · $extra"
         else "הפעל כדי שהרקע יתחלף אוטומטית"
