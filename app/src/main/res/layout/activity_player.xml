@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent" android:background="#000">
+    <org.videolan.libvlc.util.VLCVideoLayout android:id="@+id/video"
+        android:layout_width="match_parent" android:layout_height="match_parent" />
+    <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_gravity="top" android:background="#88000000" android:padding="10dp"
+        android:textColor="#FFF" android:textDirection="rtl" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_gravity="bottom" android:background="#88000000" android:gravity="center"
+        android:layoutDirection="rtl" android:padding="4dp">
+        <Button android:id="@+id/btnPrevCh" style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="› ערוץ" />
+        <Button android:id="@+id/btnBack10" style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="-10 ד׳" />
+        <Button android:id="@+id/btnQuality" style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="HD" />
+        <Button android:id="@+id/btnSnapshot" style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="📷" />
+        <Button android:id="@+id/btnRecord" style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="● הקלט" android:textColor="#FF5252" />
+        <Button android:id="@+id/btnFwd10" style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="+10 ד׳" />
+        <Button android:id="@+id/btnNextCh" style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ערוץ ‹" />
+    </LinearLayout>
+</FrameLayout>
