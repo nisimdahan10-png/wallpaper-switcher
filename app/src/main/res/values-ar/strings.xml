@@ -81,4 +81,5 @@
     <string name="folder">مجلد</string>
     <string name="language">اللغة</string>
     <string name="lang_system">لغة الجهاز</string>
+    <string name="battery_how">ابحث عن \"مبدّل الخلفيات\" في القائمة واختر \"عدم التحسين\"</string>
 </resources>

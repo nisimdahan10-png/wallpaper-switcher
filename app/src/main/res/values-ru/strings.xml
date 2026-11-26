@@ -81,4 +81,5 @@
     <string name="folder">Папка</string>
     <string name="language">Язык</string>
     <string name="lang_system">Как в системе</string>
+    <string name="battery_how">Найдите «Смена обоев» в списке и выберите «Не экономить»</string>
 </resources>

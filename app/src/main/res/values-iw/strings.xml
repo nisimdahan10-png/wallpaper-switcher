@@ -81,4 +81,5 @@
     <string name="folder">תיקייה</string>
     <string name="language">שפה</string>
     <string name="lang_system">ברירת המחדל של המכשיר</string>
+    <string name="battery_how">מצא את \"מחליף רקעים\" ברשימה ובחר \"ללא אופטימיזציה\"</string>
 </resources>

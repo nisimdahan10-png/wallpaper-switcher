@@ -306,18 +306,13 @@ class MainActivity : Activity() {
             if (restricted && Prefs.isEnabled(this)) View.VISIBLE else View.GONE
     }
 
-    @Suppress("BatteryLife")
+    /** פותח את רשימת הגבלות הסוללה (בלי הרשאה מיוחדת – לפי מדיניות גוגל פליי) */
     private fun requestBatteryExemption() {
+        toast(getString(R.string.battery_how))
         try {
-            startActivity(
-                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
-            )
+            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
         } catch (e: Exception) {
-            try {
-                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-            } catch (_: Exception) {
-                startActivity(Intent(Settings.ACTION_SETTINGS))
-            }
+            startActivity(Intent(Settings.ACTION_SETTINGS))
         }
     }
 

@@ -81,4 +81,5 @@
     <string name="folder">Folder</string>
     <string name="language">Language</string>
     <string name="lang_system">Device default</string>
+    <string name="battery_how">Find \"Wallpaper Switcher\" in the list and choose \"Don\'t optimize\"</string>
 </resources>
