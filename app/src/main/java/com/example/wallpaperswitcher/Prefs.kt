@@ -31,6 +31,12 @@ object Prefs {
     fun setUris(c: Context, list: List<String>) =
         sp(c).edit().putString("uris", list.joinToString("\n")).apply()
 
+    fun getFolders(c: Context): List<String> =
+        (sp(c).getString("folders", "") ?: "").split("\n").filter { it.isNotBlank() }
+
+    fun setFolders(c: Context, list: List<String>) =
+        sp(c).edit().putString("folders", list.joinToString("\n")).apply()
+
     fun getIndex(c: Context) = sp(c).getInt("index", -1)
     fun setIndex(c: Context, v: Int) = sp(c).edit().putInt("index", v).apply()
 

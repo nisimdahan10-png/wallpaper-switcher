@@ -3,22 +3,28 @@ package com.example.wallpaperswitcher
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.Dialog
 import android.app.WallpaperManager
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.ext.SdkExtensions
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.LruCache
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.Button
 import android.widget.GridLayout
 import android.widget.ImageView
@@ -78,10 +84,12 @@ class MainActivity : Activity() {
         }
 
         findViewById<View>(R.id.addButton).setOnClickListener { pickImages() }
+        findViewById<View>(R.id.addFolderButton).setOnClickListener { pickFolder() }
+        findViewById<View>(R.id.batteryFix).setOnClickListener { requestBatteryExemption() }
 
         enabledSwitch.setOnCheckedChangeListener { _, checked ->
             if (updatingSwitch) return@setOnCheckedChangeListener
-            if (checked && Prefs.getUris(this).isEmpty()) {
+            if (checked && !Library.hasAny(this)) {
                 toast("קודם הוסף תמונות")
                 setSwitch(false)
                 return@setOnCheckedChangeListener
@@ -91,10 +99,12 @@ class MainActivity : Activity() {
 
         clearAll.setOnClickListener {
             AlertDialog.Builder(this)
-                .setMessage("להסיר את כל התמונות מהרשימה?")
+                .setMessage("להסיר את כל התמונות והתיקיות מהרשימה?")
                 .setPositiveButton("נקה הכל") { _, _ ->
                     Prefs.getUris(this).forEach { releasePermission(it) }
+                    Prefs.getFolders(this).forEach { releasePermission(it) }
                     Prefs.setUris(this, emptyList())
+                    Prefs.setFolders(this, emptyList())
                     Prefs.setIndex(this, -1)
                     setEnabled(false)
                     refresh()
@@ -104,7 +114,7 @@ class MainActivity : Activity() {
         }
 
         findViewById<View>(R.id.nowButton).setOnClickListener {
-            if (Prefs.getUris(this).isEmpty()) {
+            if (!Library.hasAny(this)) {
                 toast("קודם הוסף תמונות")
             } else {
                 WallpaperChanger.changeAsync(this) {
@@ -205,7 +215,7 @@ class MainActivity : Activity() {
             if (nowLive) {
                 WallpaperChanger.prepareLockForLive(this)
                 if (!isLiveWallpaperActive()) openLiveWallpaperPicker()
-            } else if (wasLive && Prefs.getUris(this).isNotEmpty()) {
+            } else if (wasLive && Library.hasAny(this)) {
                 WallpaperChanger.changeAsync(this) // חזרה לרקע רגיל
             }
             refreshStatus()
@@ -220,6 +230,31 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         refreshGrid() // הרקע אולי התחלף בזמן שהמסך היה כבוי
+        refreshBattery()
+    }
+
+    // ---------- סוללה ----------
+
+    private fun refreshBattery() {
+        val pm = getSystemService(PowerManager::class.java)
+        val restricted = !pm.isIgnoringBatteryOptimizations(packageName)
+        findViewById<View>(R.id.batteryCard).visibility =
+            if (restricted && Prefs.isEnabled(this)) View.VISIBLE else View.GONE
+    }
+
+    @Suppress("BatteryLife")
+    private fun requestBatteryExemption() {
+        try {
+            startActivity(
+                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
+            )
+        } catch (e: Exception) {
+            try {
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            } catch (_: Exception) {
+                startActivity(Intent(Settings.ACTION_SETTINGS))
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -245,6 +280,7 @@ class MainActivity : Activity() {
         }
         setSwitch(on)
         refreshStatus()
+        refreshBattery()
     }
 
     private fun setSwitch(on: Boolean) {
@@ -337,24 +373,71 @@ class MainActivity : Activity() {
     // ---------- רשת התמונות ----------
 
     private fun refreshGrid() {
-        val uris = Prefs.getUris(this)
+        loader.execute {
+            val all = Library.all(this) // סריקת תיקיות – ברקע
+            mainHandler.post { if (!isDestroyed) renderGrid(all) }
+        }
+    }
+
+    private fun renderGrid(all: List<Img>) {
         val current = Prefs.getIndex(this)
 
         grid.removeAllViews()
-        uris.forEachIndexed { i, s -> grid.addView(makeThumb(i, s, i == current)) }
+        all.forEachIndexed { i, img -> grid.addView(makeThumb(i, img, i == current)) }
 
         // גובה המלבן: עד 2.5 שורות, ואם יש פחות תמונות – בדיוק כמה שצריך
-        val rows = (uris.size + 3) / 4
+        val rows = (all.size + 3) / 4
         val rowH = tileSize + dp(6)
         val boxH = (minOf(rows.toFloat(), 2.5f) * rowH).toInt() + dp(8)
         gridScroll.layoutParams = gridScroll.layoutParams.apply { height = boxH }
 
-        val empty = uris.isEmpty()
+        val empty = all.isEmpty()
+        val hasAny = Library.hasAny(this)
         gridScroll.visibility = if (empty) View.GONE else View.VISIBLE
         emptyText.visibility = if (empty) View.VISIBLE else View.GONE
-        countText.text = if (empty) "התמונות שלי" else "התמונות שלי (${uris.size})"
-        clearAll.visibility = if (empty) View.GONE else View.VISIBLE
+        emptyText.text = if (hasAny) "התיקייה ריקה – אין בה תמונות" else "עדיין לא נבחרו תמונות"
+        countText.text = if (empty) "התמונות שלי" else "התמונות שלי (${all.size})"
+        clearAll.visibility = if (hasAny) View.VISIBLE else View.GONE
         gridHint.visibility = if (empty) View.GONE else View.VISIBLE
+
+        renderFolders(all)
+    }
+
+    private fun renderFolders(all: List<Img>) {
+        val box = findViewById<LinearLayout>(R.id.foldersList)
+        box.removeAllViews()
+        for (f in Prefs.getFolders(this)) {
+            val count = all.count { it.folder == f }
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(dp(4), dp(8), dp(4), dp(8))
+            }
+            row.addView(TextView(this).apply {
+                text = "📁  ${Library.folderName(f)}  ·  $count תמונות"
+                setTextColor(getColor(R.color.text))
+                textSize = 14f
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            row.addView(TextView(this).apply {
+                text = "הסר"
+                setTextColor(getColor(R.color.danger))
+                textSize = 14f
+                setPadding(dp(8), 0, dp(8), 0)
+                setOnClickListener {
+                    AlertDialog.Builder(this@MainActivity)
+                        .setMessage("להסיר את התיקייה \"${Library.folderName(f)}\" מהסבב?\n(התמונות עצמן לא יימחקו)")
+                        .setPositiveButton("הסר") { _, _ ->
+                            mutateKeepingCurrent {
+                                Prefs.setFolders(this@MainActivity, Prefs.getFolders(this@MainActivity) - f)
+                                releasePermission(f)
+                            }
+                        }
+                        .setNegativeButton("ביטול", null)
+                        .show()
+                }
+            })
+            box.addView(row)
+        }
     }
 
     private fun tileParams() = GridLayout.LayoutParams().apply {
@@ -363,15 +446,15 @@ class MainActivity : Activity() {
         setMargins(dp(3), dp(3), dp(3), dp(3))
     }
 
-    private fun makeThumb(index: Int, uri: String, isCurrent: Boolean): View {
+    private fun makeThumb(index: Int, img: Img, isCurrent: Boolean): View {
         val iv = ImageView(this)
         iv.layoutParams = tileParams()
         iv.scaleType = ImageView.ScaleType.CENTER_CROP
         iv.background = getDrawable(R.drawable.thumb_bg)
         iv.clipToOutline = true
         if (isCurrent) iv.foreground = getDrawable(R.drawable.thumb_current)
-        iv.setOnClickListener { confirmRemove(index) }
-        loadThumb(uri, iv)
+        iv.setOnClickListener { showPreview(index, img) }
+        loadThumb(img.uri, iv)
         return iv
     }
 
@@ -398,25 +481,93 @@ class MainActivity : Activity() {
         null
     }
 
-    private fun confirmRemove(index: Int) {
-        AlertDialog.Builder(this)
-            .setMessage("להסיר את התמונה מהרשימה?")
-            .setPositiveButton("הסר") { _, _ -> removeAt(index) }
-            .setNegativeButton("ביטול", null)
-            .show()
+    // ---------- תצוגה מלאה ----------
+
+    private fun showPreview(index: Int, img: Img) {
+        val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+
+        // מציג את התמונה כמו שהיא תיראה כרקע (ממלאת את המסך)
+        val iv = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+        thumbCache.get(img.uri)?.let { iv.setImageBitmap(it) }
+        root.addView(iv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            setPadding(dp(16), dp(16), dp(16), dp(32))
+            setBackgroundColor(0x99000000.toInt())
+        }
+        bar.addView(barButton("הגדר כרקע", R.drawable.btn_primary) {
+            dialog.dismiss()
+            WallpaperChanger.changeAsync(this, index) {
+                toast("הרקע הוחלף")
+                refreshGrid()
+            }
+        })
+        if (img.folder == null) {
+            bar.addView(barButton("הסר", R.drawable.btn_danger) {
+                dialog.dismiss()
+                mutateKeepingCurrent {
+                    Library.removeManual(this, img.uri)
+                    releasePermission(img.uri)
+                }
+            })
+        }
+        bar.addView(barButton("סגור", R.drawable.btn_dark) { dialog.dismiss() })
+        root.addView(bar, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM
+        ))
+
+        if (img.folder != null) {
+            root.addView(TextView(this).apply {
+                text = "📁 ${Library.folderName(img.folder)} – להסרה, הוצא אותה מהתיקייה או הסר את התיקייה"
+                setTextColor(Color.WHITE)
+                textSize = 12f
+                setPadding(dp(16), dp(12), dp(16), dp(12))
+                setBackgroundColor(0x99000000.toInt())
+            }, FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP
+            ))
+        }
+
+        dialog.setContentView(root)
+        dialog.show()
+
+        // טוען את התמונה באיכות מלאה
+        loader.execute {
+            val full = WallpaperChanger.decodeScaled(this, Uri.parse(img.uri))
+            mainHandler.post { if (dialog.isShowing && full != null) iv.setImageBitmap(full) }
+        }
     }
 
-    private fun removeAt(index: Int) {
-        val list = Prefs.getUris(this).toMutableList()
-        if (index !in list.indices) return
-        releasePermission(list.removeAt(index))
-        Prefs.setUris(this, list)
+    private fun barButton(label: String, bg: Int, onClick: () -> Unit) = Button(this).apply {
+        text = label
+        setTextColor(Color.WHITE)
+        textSize = 15f
+        background = getDrawable(bg)
+        stateListAnimator = null
+        layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(4), 0, dp(4), 0) }
+        setOnClickListener { onClick() }
+    }
 
-        val current = Prefs.getIndex(this)
-        if (index <= current) Prefs.setIndex(this, current - 1)
-
-        if (list.isEmpty() && Prefs.isEnabled(this)) setEnabled(false)
-        refreshGrid()
+    /** שינוי ברשימה בלי לאבד את סימון הרקע הנוכחי */
+    private fun mutateKeepingCurrent(block: () -> Unit) {
+        loader.execute {
+            val idx = Prefs.getIndex(this)
+            val curUri = if (idx >= 0) Library.all(this).getOrNull(idx)?.uri else null
+            mainHandler.post {
+                block()
+                loader.execute {
+                    val all = Library.all(this)
+                    Prefs.setIndex(this, curUri?.let { u -> all.indexOfFirst { it.uri == u } } ?: -1)
+                    mainHandler.post {
+                        if (!Library.hasAny(this) && Prefs.isEnabled(this)) setEnabled(false)
+                        renderGrid(all)
+                    }
+                }
+            }
+        }
     }
 
     private fun releasePermission(uri: String) {
@@ -460,9 +611,35 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun pickFolder() {
+        @Suppress("DEPRECATION")
+        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_FOLDER)
+    }
+
+    private fun onFolderPicked(tree: Uri) {
+        try {
+            contentResolver.takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        } catch (_: SecurityException) { }
+        val s = tree.toString()
+        val folders = Prefs.getFolders(this)
+        if (s in folders) {
+            toast("התיקייה כבר ברשימה")
+            return
+        }
+        mutateKeepingCurrent { Prefs.setFolders(this, folders + s) }
+        loader.execute {
+            val n = Library.scan(this, s).size
+            mainHandler.post { toast("נוספה התיקייה ${Library.folderName(s)} ($n תמונות)") }
+        }
+    }
+
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_FOLDER && resultCode == RESULT_OK) {
+            data?.data?.let { onFolderPicked(it) }
+            return
+        }
         if (requestCode != REQ_PICK || resultCode != RESULT_OK || data == null) return
 
         val picked = mutableListOf<Uri>()
@@ -480,9 +657,8 @@ class MainActivity : Activity() {
             val s = uri.toString()
             if (s !in list) { list.add(s); added++ }
         }
-        Prefs.setUris(this, list)
+        mutateKeepingCurrent { Prefs.setUris(this, list) }
         if (added > 0) toast("נוספו $added תמונות")
-        refreshGrid()
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -492,5 +668,6 @@ class MainActivity : Activity() {
     companion object {
         private const val REQ_PICK = 100
         private const val REQ_NOTIF = 101
+        private const val REQ_FOLDER = 102
     }
 }

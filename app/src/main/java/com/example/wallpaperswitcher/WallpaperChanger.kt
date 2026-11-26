@@ -18,20 +18,25 @@ object WallpaperChanger {
     const val ACTION_CHANGE_NOW = "com.example.wallpaperswitcher.CHANGE_NOW"
     private val executor = Executors.newSingleThreadExecutor()
 
-    fun changeAsync(context: Context, onDone: (() -> Unit)? = null) {
+    const val EXTRA_INDEX = "index"
+
+    /** force = אינדקס תמונה מסוימת להגדרה (null = הבאה בתור) */
+    fun changeAsync(context: Context, force: Int? = null, onDone: (() -> Unit)? = null) {
         val app = context.applicationContext
         val main = Handler(Looper.getMainLooper())
 
         if (Prefs.isLive(app)) {
             // מצב אפקטים – הרקע החי מחליף בעצמו עם אנימציה
-            app.sendBroadcast(Intent(ACTION_CHANGE_NOW).setPackage(app.packageName))
+            app.sendBroadcast(
+                Intent(ACTION_CHANGE_NOW).setPackage(app.packageName).putExtra(EXTRA_INDEX, force ?: -1)
+            )
             onDone?.let { main.postDelayed(it, 500) }
             return
         }
 
         executor.execute {
             try {
-                change(app)
+                change(app, force)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to change wallpaper", e)
             }
@@ -39,34 +44,54 @@ object WallpaperChanger {
         }
     }
 
-    /** בוחר את האינדקס הבא, שומר אותו ומחזיר את כתובת התמונה */
-    fun pickNext(c: Context): String? {
-        val uris = Prefs.getUris(c)
-        if (uris.isEmpty()) return null
+    private fun nextIndex(c: Context, size: Int): Int {
         val current = Prefs.getIndex(c)
-        val next = if (Prefs.isRandom(c) && uris.size > 1) {
+        return if (Prefs.isRandom(c) && size > 1) {
             var r: Int
-            do { r = Random.nextInt(uris.size) } while (r == current)
+            do { r = Random.nextInt(size) } while (r == current)
             r
         } else {
-            (current + 1).mod(uris.size)
+            (current + 1).mod(size)
         }
-        Prefs.setIndex(c, next)
-        return uris[next]
+    }
+
+    /**
+     * טוען את התמונה הבאה (או את force) ושומר את האינדקס.
+     * תמונה שנמחקה מהגלריה מדלגים עליה, ואם נבחרה ידנית – מסירים אותה מהרשימה.
+     */
+    fun nextBitmap(c: Context, force: Int? = null): Bitmap? {
+        val all = Library.all(c)
+        if (all.isEmpty()) return null
+        var idx = if (force != null && force in all.indices) force else nextIndex(c, all.size)
+        val broken = ArrayList<String>()
+        var result: Bitmap? = null
+        var chosen: String? = null
+        for (attempt in all.indices) {
+            val img = all[idx]
+            val bmp = decodeScaled(c, Uri.parse(img.uri))
+            if (bmp != null) { result = bmp; chosen = img.uri; break }
+            if (img.folder == null) broken.add(img.uri)
+            idx = (idx + 1) % all.size
+        }
+        if (broken.isNotEmpty()) broken.forEach { Library.removeManual(c, it) }
+        if (chosen != null) {
+            val fresh = if (broken.isEmpty()) all else Library.all(c)
+            Prefs.setIndex(c, fresh.indexOfFirst { it.uri == chosen })
+        }
+        return result
     }
 
     /** התמונה שמוצגת עכשיו (או הראשונה) */
     fun currentUri(c: Context): String? {
-        val uris = Prefs.getUris(c)
-        return uris.getOrNull(Prefs.getIndex(c)) ?: uris.firstOrNull()
+        val all = Library.all(c)
+        return (all.getOrNull(Prefs.getIndex(c)) ?: all.firstOrNull())?.uri
     }
 
-    private fun change(c: Context) {
+    private fun change(c: Context, force: Int?) {
         val wm = WallpaperManager.getInstance(c)
         val prevUri = if (Prefs.getIndex(c) >= 0) currentUri(c) else null
-        val uri = pickNext(c) ?: return
-        val bitmap = decodeScaled(c, Uri.parse(uri)) ?: run {
-            Log.w(TAG, "Could not read image $uri")
+        val bitmap = nextBitmap(c, force) ?: run {
+            Log.w(TAG, "No readable image")
             return
         }
         when (Prefs.getTarget(c)) {

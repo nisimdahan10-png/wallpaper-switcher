@@ -79,7 +79,7 @@ class SwitcherService : Service() {
             Notification.Builder(this)
         }
         return builder
-            .setSmallIcon(android.R.drawable.ic_menu_gallery)
+            .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle("מחליף רקעים פעיל")
             .setContentText("הרקע יתחלף בכל כיבוי/הדלקה של המסך")
             .setContentIntent(openApp)

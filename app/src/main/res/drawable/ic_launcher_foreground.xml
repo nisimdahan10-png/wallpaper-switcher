@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- תמונה אחורית -->
+    <path android:fillColor="#B3FFFFFF"
+        android:pathData="M41,28 H75 A5,5 0 0 1 80,33 V63 A5,5 0 0 1 75,68 H72 V41 A5,5 0 0 0 67,36 H36 V33 A5,5 0 0 1 41,28 Z" />
+    <!-- תמונה קדמית -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M33,36 H67 A5,5 0 0 1 72,41 V71 A5,5 0 0 1 67,76 H33 A5,5 0 0 1 28,71 V41 A5,5 0 0 1 33,36 Z" />
+    <!-- הרים -->
+    <path android:fillColor="#3F51B5"
+        android:pathData="M32,72 L44,55 L52,64 L57,58 L68,72 Z" />
+    <!-- שמש -->
+    <path android:fillColor="#FFB300"
+        android:pathData="M55,47 a4.5,4.5 0 1 0 9,0 a4.5,4.5 0 1 0 -9,0 Z" />
+</vector>

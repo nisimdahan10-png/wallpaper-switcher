@@ -64,7 +64,7 @@ class LiveWallpaper : WallpaperService() {
                     WallpaperChanger.ACTION_CHANGE_NOW -> true
                     else -> false
                 }
-                if (go) loadNext()
+                if (go) loadNext(i.getIntExtra(WallpaperChanger.EXTRA_INDEX, -1).takeIf { it >= 0 })
             }
         }
 
@@ -123,11 +123,10 @@ class LiveWallpaper : WallpaperService() {
             }
         }
 
-        private fun loadNext() {
+        private fun loadNext(force: Int? = null) {
             val ctx = applicationContext
             loader.execute {
-                val uri = WallpaperChanger.pickNext(ctx) ?: return@execute
-                val bmp = WallpaperChanger.decodeScaled(ctx, Uri.parse(uri)) ?: return@execute
+                val bmp = WallpaperChanger.nextBitmap(ctx, force) ?: return@execute
                 // "שניהם" – מסך הנעילה מקבל את אותה תמונה (בלי אנימציה)
                 if (Prefs.getTarget(ctx) == Prefs.TARGET_BOTH) WallpaperChanger.setLock(ctx, bmp)
                 handler.post {
