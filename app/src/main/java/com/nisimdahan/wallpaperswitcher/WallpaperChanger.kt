@@ -1,4 +1,4 @@
-package com.example.wallpaperswitcher
+package com.nisimdahan.wallpaperswitcher
 
 import android.app.WallpaperManager
 import android.content.Context
@@ -15,7 +15,7 @@ import kotlin.random.Random
 /** בוחר את התמונה הבאה ומגדיר אותה כרקע */
 object WallpaperChanger {
     private const val TAG = "WallpaperChanger"
-    const val ACTION_CHANGE_NOW = "com.example.wallpaperswitcher.CHANGE_NOW"
+    const val ACTION_CHANGE_NOW = "com.nisimdahan.wallpaperswitcher.CHANGE_NOW"
     private val executor = Executors.newSingleThreadExecutor()
 
     const val EXTRA_INDEX = "index"

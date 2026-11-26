@@ -1,4 +1,4 @@
-package com.example.wallpaperswitcher
+package com.nisimdahan.wallpaperswitcher
 
 import android.Manifest
 import android.app.Activity
@@ -7,6 +7,7 @@ import android.app.Dialog
 import android.app.WallpaperManager
 import android.content.ComponentName
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -23,6 +24,8 @@ import android.util.LruCache
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.Button
@@ -63,6 +66,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        setupEdgeToEdge()
 
         statusTitle = findViewById(R.id.statusTitle)
         statusSub = findViewById(R.id.statusSub)
@@ -220,6 +224,59 @@ class MainActivity : Activity() {
         refreshGrid() // הרקע אולי התחלף בזמן שהמסך היה כבוי
         refreshBattery()
     }
+
+    // ---------- תצוגה מקצה לקצה (חובה מאנדרואיד 15) ----------
+
+    private fun isNight() =
+        (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
+    private fun setupEdgeToEdge() {
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= 30) {
+            window.setDecorFitsSystemWindows(false)
+            // סמלי שורת הסטטוס לבנים (על הכותרת הצבעונית); סרגל הניווט לפי מצב בהיר/כהה
+            window.insetsController?.setSystemBarsAppearance(
+                if (isNight()) 0 else WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+                    WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            var flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            @Suppress("DEPRECATION")
+            if (Build.VERSION.SDK_INT >= 26 && !isNight()) flags = flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = flags
+        }
+
+        val header = findViewById<View>(R.id.header)
+        val now = findViewById<View>(R.id.nowButton)
+        val headerH = header.layoutParams.height
+        val headerTop = header.paddingTop
+        val nowBottom = (now.layoutParams as ViewGroup.MarginLayoutParams).bottomMargin
+
+        findViewById<View>(R.id.root).setOnApplyWindowInsetsListener { _, insets ->
+            val (top, bottom) = systemBars(insets)
+            header.layoutParams = header.layoutParams.apply { height = headerH + top }
+            header.setPadding(header.paddingLeft, headerTop + top, header.paddingRight, header.paddingBottom)
+            now.layoutParams = (now.layoutParams as ViewGroup.MarginLayoutParams).apply {
+                bottomMargin = nowBottom + bottom
+            }
+            insets
+        }
+    }
+
+    private fun systemBars(insets: WindowInsets): Pair<Int, Int> =
+        if (Build.VERSION.SDK_INT >= 30) {
+            val b = insets.getInsets(WindowInsets.Type.systemBars())
+            b.top to b.bottom
+        } else {
+            @Suppress("DEPRECATION")
+            insets.systemWindowInsetTop to insets.systemWindowInsetBottom
+        }
 
     // ---------- סוללה ----------
 
@@ -502,7 +559,7 @@ class MainActivity : Activity() {
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutDirection = View.LAYOUT_DIRECTION_RTL
-            setPadding(dp(16), dp(16), dp(16), dp(32))
+            setPadding(dp(16), dp(16), dp(16), dp(16))
             setBackgroundColor(0x99000000.toInt())
         }
         bar.addView(barButton("הגדר כרקע", R.drawable.btn_primary) {
@@ -536,6 +593,13 @@ class MainActivity : Activity() {
             }, FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP
             ))
+        }
+
+        val barBottom = bar.paddingBottom
+        root.setOnApplyWindowInsetsListener { _, insets ->
+            val (_, bottom) = systemBars(insets)
+            bar.setPadding(bar.paddingLeft, bar.paddingTop, bar.paddingRight, barBottom + bottom)
+            insets
         }
 
         dialog.setContentView(root)

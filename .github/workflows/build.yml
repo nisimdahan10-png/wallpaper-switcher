@@ -18,17 +18,39 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.7"
-      - run: gradle assembleDebug
-      - uses: actions/upload-artifact@v4
-        with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
-      - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk WallpaperSwitcher.apk
+          gradle-version: "8.11.1"
+
+      # מפתח ההעלאה לגוגל פליי (אם הוגדר ב-Settings → Secrets)
+      - name: Prepare upload key
+        env:
+          KS_B64: ${{ secrets.SIGNING_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            echo "SIGNING_KEYSTORE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+            echo "Upload key found – release bundle will be signed"
+          else
+            echo "No upload key secret – building test APK only"
+          fi
+
+      - name: Build
+        env:
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: gradle assembleDebug bundleRelease
+
+      - name: Collect outputs
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk WallpaperSwitcher.apk
+          if [ -n "$SIGNING_KEYSTORE" ] && [ -f app/build/outputs/bundle/release/app-release.aab ]; then
+            cp app/build/outputs/bundle/release/app-release.aab WallpaperSwitcher-GooglePlay.aab
+          fi
+
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: מחליף רקעים – גרסה ${{ github.run_number }}
-          files: WallpaperSwitcher.apk
+          files: |
+            WallpaperSwitcher.apk
+            WallpaperSwitcher-GooglePlay.aab
+          fail_on_unmatched_files: false
           make_latest: true

@@ -1,4 +1,4 @@
-package com.example.wallpaperswitcher
+package com.nisimdahan.wallpaperswitcher
 
 import android.content.BroadcastReceiver
 import android.content.Context

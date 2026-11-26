@@ -1,4 +1,4 @@
-package com.example.wallpaperswitcher
+package com.nisimdahan.wallpaperswitcher
 
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService

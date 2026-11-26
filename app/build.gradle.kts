@@ -3,31 +3,49 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// מפתח העלאה לגוגל פליי – מגיע מ-GitHub Secrets בזמן הבנייה (לא נשמר בקוד)
+val releaseKeystore: String? = System.getenv("SIGNING_KEYSTORE")
+val releasePassword: String? = System.getenv("SIGNING_PASSWORD")
+
 android {
-    namespace = "com.example.wallpaperswitcher"
-    compileSdk = 34
+    namespace = "com.nisimdahan.wallpaperswitcher"
+    compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.wallpaperswitcher"
+        applicationId = "com.nisimdahan.wallpaperswitcher"
         minSdk = 24
-        targetSdk = 34
-        versionCode = 10
-        versionName = "3.0"
+        targetSdk = 36
+        versionCode = 11
+        versionName = "3.1"
     }
 
-    // מפתח חתימה קבוע – כך כל גרסה חדשה מתעדכנת מעל הקודמת בלי למחוק
     signingConfigs {
+        // מפתח קבוע לגרסאות הבדיקה – כך כל גרסה מתעדכנת מעל הקודמת
         getByName("debug") {
             storeFile = file("debug.keystore")
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        if (releaseKeystore != null && releasePassword != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = releasePassword
+                keyAlias = "upload"
+                keyPassword = releasePassword
+            }
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }
 
