@@ -74,6 +74,9 @@ class MainActivity : Activity() {
         gridScroll = findViewById(R.id.gridScroll)
         emptyText = findViewById(R.id.emptyText)
 
+        val version = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "" }
+        findViewById<TextView>(R.id.versionText).text = "v$version"
+
         // 4 עמודות: רוחב מסך פחות ריווחים (16×4 חוץ וכרטיס, 4×2 ריפוד המלבן, 3×8 שוליים)
         tileSize = (resources.displayMetrics.widthPixels - dp(16 * 4 + 4 * 2 + 3 * 8)) / 4
 
@@ -113,11 +116,16 @@ class MainActivity : Activity() {
                 .show()
         }
 
-        findViewById<View>(R.id.nowButton).setOnClickListener {
+        findViewById<View>(R.id.nowButton).setOnClickListener { btn ->
+            btn.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!Library.hasAny(this)) {
                 toast("קודם הוסף תמונות")
             } else {
+                btn.isEnabled = false
+                btn.alpha = 0.6f
                 WallpaperChanger.changeAsync(this) {
+                    btn.isEnabled = true
+                    btn.alpha = 1f
                     toast("הרקע הוחלף")
                     refreshGrid()
                 }
@@ -343,6 +351,10 @@ class MainActivity : Activity() {
         val on = Prefs.isEnabled(this)
         statusTitle.text = if (on) "פעיל" else "כבוי"
         statusTitle.setTextColor(getColor(if (on) R.color.on_green else R.color.text_secondary))
+        findViewById<ImageView>(R.id.statusIcon).apply {
+            setImageResource(if (on) R.drawable.ic_check else R.drawable.ic_pause)
+            setBackgroundResource(if (on) R.drawable.status_on_bg else R.drawable.status_off_bg)
+        }
 
         val whenText = when (Prefs.getTrigger(this)) {
             Prefs.TRIGGER_SCREEN_ON -> "בכל הדלקת מסך"
@@ -390,6 +402,7 @@ class MainActivity : Activity() {
         countText.text = if (empty) "התמונות שלי" else "התמונות שלי (${all.size})"
         clearAll.visibility = if (hasAny) View.VISIBLE else View.GONE
         gridHint.visibility = if (empty) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.startCard).visibility = if (hasAny) View.GONE else View.VISIBLE
 
         renderFolders(all)
     }
@@ -404,8 +417,11 @@ class MainActivity : Activity() {
                 setPadding(dp(4), dp(8), dp(4), dp(8))
             }
             row.addView(TextView(this).apply {
-                text = "📁  ${Library.folderName(f)}  ·  $count תמונות"
+                text = "${Library.folderName(f)}  ·  $count תמונות"
                 setTextColor(getColor(R.color.text))
+                gravity = Gravity.CENTER_VERTICAL
+                setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_folder, 0, 0, 0)
+                compoundDrawablePadding = dp(10)
                 textSize = 14f
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
@@ -512,7 +528,7 @@ class MainActivity : Activity() {
 
         if (img.folder != null) {
             root.addView(TextView(this).apply {
-                text = "📁 ${Library.folderName(img.folder)} – להסרה, הוצא אותה מהתיקייה או הסר את התיקייה"
+                text = "מהתיקייה ${Library.folderName(img.folder)} – כדי להוציא אותה מהסבב, הסר את התיקייה או העבר את התמונה ממנה"
                 setTextColor(Color.WHITE)
                 textSize = 12f
                 setPadding(dp(16), dp(12), dp(16), dp(12))

@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.wallpaperswitcher"
         minSdk = 24
         targetSdk = 34
-        versionCode = 9
-        versionName = "2.3"
+        versionCode = 10
+        versionName = "3.0"
     }
 
     // מפתח חתימה קבוע – כך כל גרסה חדשה מתעדכנת מעל הקודמת בלי למחוק
