@@ -102,7 +102,7 @@ class PlayerActivity : AppCompatActivity() {
             when (e.type) {
                 MediaPlayer.Event.Playing -> status.text = title() + if (recordFile != null) " • ● מקליט" else ""
                 MediaPlayer.Event.Buffering -> if (e.buffering < 100f) status.text = "${title()} • טוען ${e.buffering.toInt()}%"
-                MediaPlayer.Event.EncounteredError -> status.text = "שגיאה בחיבור – בדוק כתובת, סיסמה ופורט"
+                MediaPlayer.Event.EncounteredError -> status.text = "שגיאה בחיבור – בדוק כתובת, סיסמה ופורט\n${cfg.masked(url)}"
                 MediaPlayer.Event.EndReached -> if (isPlayback) status.text = "סוף ההקלטה"
             }
         }
@@ -114,7 +114,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun releasePlayer() {
-        player?.let { it.stop(); it.detachViews(); it.release() }
+        player?.let { it.setEventListener(null); it.stop(); it.detachViews(); it.release() }
         player = null
     }
 

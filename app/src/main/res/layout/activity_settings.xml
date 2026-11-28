@@ -30,6 +30,8 @@
     <Button android:id="@+id/btnDetect" style="@style/Widget.Material3.Button.OutlinedButton"
         android:layout_width="match_parent" android:layout_height="wrap_content" android:text="🔍 זהה יצרן אוטומטית" />
     <TextView android:id="@+id/result" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" />
+    <org.videolan.libvlc.util.VLCVideoLayout android:id="@+id/probeView"
+        android:layout_width="1dp" android:layout_height="1dp" />
     <TextView android:id="@+id/tplLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
         android:text="תבנית RTSP. משתנים: {host} {port} {ch} {ch2}=01 {stream}=0 ראשי / 1 משני" />
     <EditText android:id="@+id/etTemplate" android:layout_width="match_parent" android:layout_height="wrap_content"

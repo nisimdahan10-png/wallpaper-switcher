@@ -42,7 +42,7 @@ data class NvrConfig(
         Brand.HIKVISION -> "$base/Streaming/Channels/${ch}0${if (main) 1 else 2}"
         Brand.DAHUA -> "$base/cam/realmonitor?channel=$ch&subtype=${if (main) 0 else 1}"
         Brand.UNIVIEW -> "$base/unicast/c$ch/s${if (main) 0 else 1}/live"
-        Brand.REOLINK -> "$base/h264Preview_%02d_${if (main) "main" else "sub"}".format(ch)
+        Brand.REOLINK -> "$base/h264Preview_${"%02d".format(ch)}_${if (main) "main" else "sub"}"
         Brand.CUSTOM -> customTemplate
             .replace("{host}", "${creds()}$host").replace("{port}", port.toString())
             .replace("{ch}", ch.toString()).replace("{ch2}", "%02d".format(ch))
@@ -65,6 +65,9 @@ data class NvrConfig(
     }
 
     fun withBrand(b: Brand) = copy(brand = b)
+
+    /** URL with the password hidden, for showing on screen. */
+    fun masked(url: String): String = url.replace(Regex("//[^@/]*@"), "//${user}:****@")
 }
 
 object Prefs {

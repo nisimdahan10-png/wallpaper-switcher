@@ -37,6 +37,22 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.btnPrev).setOnClickListener { changePage(-1) }
         findViewById<Button>(R.id.btnNext).setOnClickListener { changePage(+1) }
+        showLastCrash()
+    }
+
+    private fun showLastCrash() {
+        val p = getSharedPreferences("crash", MODE_PRIVATE)
+        val trace = p.getString("trace", null) ?: return
+        p.edit().remove("trace").apply()
+        android.app.AlertDialog.Builder(this)
+            .setTitle("האפליקציה קרסה בפעם הקודמת")
+            .setMessage("צלם מסך ושלח ל-Claude:\n\n" + trace.take(1500))
+            .setPositiveButton("העתק") { _, _ ->
+                val cm = getSystemService(android.content.ClipboardManager::class.java)
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("crash", trace))
+            }
+            .setNegativeButton("סגור", null)
+            .show()
     }
 
     override fun onSaveInstanceState(out: Bundle) {
@@ -128,7 +144,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun releasePlayers() {
-        players.forEach { it.stop(); it.detachViews(); it.release() }
+        players.forEach { it.setEventListener(null); it.stop(); it.detachViews(); it.release() }
         players.clear()
     }
 }

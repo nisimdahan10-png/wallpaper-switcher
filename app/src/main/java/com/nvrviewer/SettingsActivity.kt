@@ -13,6 +13,9 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.util.VLCVideoLayout
+import java.net.InetSocketAddress
+import java.net.Socket
 
 class SettingsActivity : AppCompatActivity() {
     private lateinit var spBrand: Spinner
@@ -25,6 +28,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var etTemplate: EditText
     private lateinit var tplLabel: TextView
     private lateinit var result: TextView
+    private lateinit var probeView: VLCVideoLayout
 
     private val grids = listOf(1, 4, 9)
     private val handler = Handler(Looper.getMainLooper())
@@ -43,6 +47,7 @@ class SettingsActivity : AppCompatActivity() {
         etTemplate = findViewById(R.id.etTemplate)
         tplLabel = findViewById(R.id.tplLabel)
         result = findViewById(R.id.result)
+        probeView = findViewById(R.id.probeView)
 
         spBrand.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, Brand.values().map { it.label })
         spGrid.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
@@ -91,18 +96,39 @@ class SettingsActivity : AppCompatActivity() {
         caching = 600
     )
 
-    /** Tries each known brand's URL on channel 1 and picks the first one that answers. */
+    private fun reachable(host: String, port: Int): Boolean = try {
+        Socket().use { it.connect(InetSocketAddress(host, port), 3000) }; true
+    } catch (e: Exception) { false }
+
+    /** Checks the NVR answers, then tries each known brand's URL on channel 1. */
     private fun detect() {
         val base = read()
         if (base.host.isBlank()) { etHost.error = "חובה"; return }
+        result.text = "בודק אם ה-NVR עונה בכתובת ${base.host}…"
+        Thread {
+            val rtsp = reachable(base.host, base.port)
+            val web = if (rtsp) true else reachable(base.host, 80)
+            runOnUiThread {
+                when {
+                    !rtsp && !web -> result.text =
+                        "✗ אין שום מכשיר שעונה בכתובת ${base.host}.\n• ודא שהטלפון מחובר ל-WiFi של הבית\n• בדוק שוב את כתובת ה-IP (ב-NVR: תפריט ← רשת)"
+                    !rtsp -> result.text =
+                        "✗ ה-NVR נמצא, אבל פורט ${base.port} (RTSP) סגור.\nהפעל RTSP בהגדרות ה-NVR (רשת ← מתקדם / פורט RTSP) ובדוק את מספר הפורט."
+                    else -> tryBrands(base)
+                }
+            }
+        }.start()
+    }
+
+    private fun tryBrands(base: NvrConfig) {
         val candidates = listOf(Brand.HIKVISION, Brand.DAHUA, Brand.UNIVIEW, Brand.REOLINK)
         fun tryAt(i: Int) {
             if (i >= candidates.size) {
-                result.text = "לא נמצא חיבור. בדוק: כתובת IP, פורט RTSP (בדרך כלל 554), שם משתמש וסיסמה, ושה-RTSP מופעל ב-NVR."
+                result.text = "✗ ה-NVR עונה בפורט ${base.port}, אבל אף פורמט לא עבד.\nכנראה שם המשתמש או הסיסמה שגויים (שים לב לאותיות גדולות/קטנות), או שהמשתמש חסום אחרי ניסיונות כושלים – חכה 30 דקות."
                 return
             }
             val b = candidates[i]
-            result.text = "בודק ${b.label}…"
+            result.text = "✓ ה-NVR עונה. בודק ${b.label}… (${i + 1}/${candidates.size})"
             probe(base.withBrand(b)) { ok ->
                 if (ok) {
                     spBrand.setSelection(b.ordinal)
@@ -123,6 +149,7 @@ class SettingsActivity : AppCompatActivity() {
             handler.post { stopProbe(); done(ok) }
         }
         val mp = MediaPlayer(Vlc.get(this))
+        mp.attachViews(probeView, null, false, false)
         mp.setEventListener { e ->
             when (e.type) {
                 MediaPlayer.Event.ESAdded, MediaPlayer.Event.Vout -> finish(true)
@@ -138,7 +165,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun stopProbe() {
-        probe?.let { it.stop(); it.release() }
+        probe?.let { it.setEventListener(null); it.stop(); it.detachViews(); it.release() }
         probe = null
     }
 }
