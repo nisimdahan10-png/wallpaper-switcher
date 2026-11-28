@@ -33,8 +33,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var probeView: VLCVideoLayout
 
     private val grids = listOf(1, 4, 9)
-    private val handler = Handler(Looper.getMainLooper())
-    private var probe: MediaPlayer? = null
+    private lateinit var prober: Prober
 
     private val scanLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val data = r.data ?: return@registerForActivityResult
@@ -64,6 +63,7 @@ class SettingsActivity : AppCompatActivity() {
         tplLabel = findViewById(R.id.tplLabel)
         result = findViewById(R.id.result)
         probeView = findViewById(R.id.probeView)
+        prober = Prober(this, probeView)
 
         spBrand.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, Brand.values().map { it.label })
         spGrid.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
@@ -100,7 +100,7 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    override fun onDestroy() { super.onDestroy(); stopProbe() }
+    override fun onDestroy() { super.onDestroy(); prober.cancel() }
 
     private fun read() = NvrConfig(
         brand = Brand.values()[spBrand.selectedItemPosition],
@@ -115,76 +115,16 @@ class SettingsActivity : AppCompatActivity() {
         caching = 600
     )
 
-    private fun reachable(host: String, port: Int): Boolean = try {
-        Socket().use { it.connect(InetSocketAddress(host, port), 3000) }; true
-    } catch (e: Exception) { false }
-
-    /** Checks the NVR answers, then tries each known brand's URL on channel 1. */
     private fun detect() {
         val base = read()
         if (base.host.isBlank()) { etHost.error = "חובה"; return }
-        result.text = "בודק אם ה-NVR עונה בכתובת ${base.host}…"
-        Thread {
-            val rtsp = reachable(base.host, base.port)
-            val web = if (rtsp) true else reachable(base.host, 80)
-            runOnUiThread {
-                when {
-                    !rtsp && !web -> result.text =
-                        "✗ אין שום מכשיר שעונה בכתובת ${base.host}.\n• ודא שהטלפון מחובר ל-WiFi של הבית\n• בדוק שוב את כתובת ה-IP (ב-NVR: תפריט ← רשת)"
-                    !rtsp -> result.text =
-                        "✗ ה-NVR נמצא, אבל פורט ${base.port} (RTSP) סגור.\nהפעל RTSP בהגדרות ה-NVR (רשת ← מתקדם / פורט RTSP) ובדוק את מספר הפורט."
-                    else -> tryBrands(base)
-                }
-            }
-        }.start()
-    }
-
-    private fun tryBrands(base: NvrConfig) {
-        val candidates = listOf(Brand.HIKVISION, Brand.DAHUA, Brand.UNIVIEW, Brand.REOLINK)
-        fun tryAt(i: Int) {
-            if (i >= candidates.size) {
-                result.text = "✗ ה-NVR עונה בפורט ${base.port}, אבל אף פורמט לא עבד.\nכנראה שם המשתמש או הסיסמה שגויים (שים לב לאותיות גדולות/קטנות), או שהמשתמש חסום אחרי ניסיונות כושלים – חכה 30 דקות."
-                return
-            }
-            val b = candidates[i]
-            result.text = "✓ ה-NVR עונה. בודק ${b.label}… (${i + 1}/${candidates.size})"
-            probe(base.withBrand(b)) { ok ->
-                if (ok) {
-                    spBrand.setSelection(b.ordinal)
-                    result.text = "✓ נמצא! ה-NVR מתאים ל-${b.label}. לחץ שמירה."
-                } else tryAt(i + 1)
+        prober.autoConnect(base, null, progress = { result.text = it }) { r ->
+            result.text = Prober.message(r, base.host, base.port)
+            if (r is Prober.Result.Ok) {
+                spBrand.setSelection(r.brand.ordinal)
+                etChannels.setText(r.channels.coerceAtLeast(1).toString())
+                result.append("\nלחץ שמירה.")
             }
         }
-        tryAt(0)
-    }
-
-    private fun probe(cfg: NvrConfig, done: (Boolean) -> Unit) {
-        stopProbe()
-        var finished = false
-        fun finish(ok: Boolean) {
-            if (finished) return
-            finished = true
-            handler.removeCallbacksAndMessages(null)
-            handler.post { stopProbe(); done(ok) }
-        }
-        val mp = MediaPlayer(Vlc.get(this))
-        mp.attachViews(probeView, null, false, false)
-        mp.setEventListener { e ->
-            when (e.type) {
-                MediaPlayer.Event.ESAdded, MediaPlayer.Event.Vout -> finish(true)
-                MediaPlayer.Event.EncounteredError, MediaPlayer.Event.EndReached -> finish(false)
-            }
-        }
-        val m = Vlc.media(this, cfg.liveUrl(1, main = false), cfg, listOf(":no-audio"))
-        mp.media = m
-        m.release()
-        mp.play()
-        probe = mp
-        handler.postDelayed({ finish(false) }, 8000)
-    }
-
-    private fun stopProbe() {
-        probe?.let { it.setEventListener(null); it.stop(); it.detachViews(); it.release() }
-        probe = null
     }
 }

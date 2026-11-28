@@ -5,9 +5,13 @@
     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:text="🔍 חיפוש NVR / DVR ברשת" android:textSize="22sp" android:textStyle="bold" />
     <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginTop="8dp" android:textColor="#AAAAAA" />
+        android:layout_marginTop="8dp" android:textColor="#AAAAAA" android:text="לחץ על המכשיר כדי להתחבר אליו" />
     <Button android:id="@+id/btnScan" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="8dp" android:text="סרוק שוב" />
+    <Button android:id="@+id/btnManual" style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:text="הגדרה ידנית" />
+    <org.videolan.libvlc.util.VLCVideoLayout android:id="@+id/probeView"
+        android:layout_width="1dp" android:layout_height="1dp" />
     <ListView android:id="@+id/list" android:layout_width="match_parent" android:layout_height="0dp"
         android:layout_weight="1" android:layout_marginTop="8dp" android:dividerHeight="1dp" android:divider="#333333" />
 </LinearLayout>

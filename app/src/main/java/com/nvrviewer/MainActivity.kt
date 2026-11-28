@@ -21,6 +21,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pageLabel: TextView
     private val players = mutableListOf<MediaPlayer>()
     private var page = 0
+    private var askedSetup = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,6 +32,9 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnSettings).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
+        }
+        findViewById<Button>(R.id.btnFind).setOnClickListener {
+            startActivity(Intent(this, ScanActivity::class.java))
         }
         findViewById<Button>(R.id.btnPlayback).setOnClickListener {
             startActivity(Intent(this, PlaybackActivity::class.java))
@@ -63,7 +67,8 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         if (!Prefs.isConfigured(this)) {
-            startActivity(Intent(this, SettingsActivity::class.java))
+            if (!askedSetup) { askedSetup = true; startActivity(Intent(this, ScanActivity::class.java)) }
+            pageLabel.text = "לא הוגדר NVR – לחץ 🔍"
             return
         }
         grid.post { showPage() }

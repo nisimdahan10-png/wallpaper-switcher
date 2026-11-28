@@ -66,17 +66,74 @@ class ScanActivity : AppCompatActivity() {
         list = findViewById(R.id.list)
         btnScan = findViewById(R.id.btnScan)
         btnScan.setOnClickListener { if (!running) scan() }
-        list.setOnItemClickListener { _, _, pos, _ ->
-            val f = shown[pos]
-            setResult(Activity.RESULT_OK, Intent()
-                .putExtra("host", f.ip)
-                .putExtra("brand", f.guessBrand()?.name))
-            finish()
+        findViewById<Button>(R.id.btnManual).setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java)); finish()
         }
+        prober = Prober(this, findViewById(R.id.probeView))
+        list.setOnItemClickListener { _, _, pos, _ -> askLogin(shown[pos]) }
         scan()
     }
 
-    override fun onDestroy() { super.onDestroy(); running = false }
+    override fun onDestroy() { super.onDestroy(); running = false; prober.cancel() }
+
+    private lateinit var prober: Prober
+
+    /** Ask for username/password, then connect automatically. */
+    private fun askLogin(f: Found) {
+        val old = Prefs.load(this)
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(pad, pad / 2, pad, 0)
+        }
+        val user = android.widget.EditText(this).apply {
+            hint = "שם משתמש"; setText(old.user.ifBlank { "admin" })
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+        }
+        val pass = android.widget.EditText(this).apply {
+            hint = "סיסמה"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            if (old.host == f.ip) setText(old.pass)
+        }
+        box.addView(user); box.addView(pass)
+        android.app.AlertDialog.Builder(this)
+            .setTitle("התחברות ל-${f.ip}")
+            .setMessage("הכנס את שם המשתמש והסיסמה שבהם נכנסים ל-NVR")
+            .setView(box)
+            .setPositiveButton("התחבר") { _, _ -> connect(f, user.text.toString().trim(), pass.text.toString()) }
+            .setNegativeButton("ביטול", null)
+            .show()
+        pass.requestFocus()
+    }
+
+    private fun connect(f: Found, user: String, pass: String) {
+        running = false
+        val base = Prefs.load(this).copy(host = f.ip, port = if (554 in f.ports) 554 else 8554, user = user, pass = pass)
+        val dlg = android.app.AlertDialog.Builder(this)
+            .setTitle("מתחבר ל-${f.ip}")
+            .setMessage("…")
+            .setCancelable(false)
+            .setNegativeButton("ביטול") { _, _ -> prober.cancel() }
+            .show()
+        prober.autoConnect(base, f.guessBrand(), progress = { dlg.setMessage(it) }) { r ->
+            dlg.dismiss()
+            if (r is Prober.Result.Ok) {
+                Prefs.save(this, base.copy(brand = r.brand, channels = r.channels.coerceAtLeast(1),
+                    gridSize = if (r.channels <= 1) 1 else if (r.channels <= 4) 4 else 9))
+                android.widget.Toast.makeText(this, Prober.message(r, base.host, base.port), android.widget.Toast.LENGTH_LONG).show()
+                startActivity(Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK))
+                finish()
+            } else {
+                android.app.AlertDialog.Builder(this)
+                    .setTitle("ההתחברות נכשלה")
+                    .setMessage(Prober.message(r, base.host, base.port))
+                    .setPositiveButton("נסה שוב") { _, _ -> askLogin(f) }
+                    .setNegativeButton("סגור", null)
+                    .show()
+            }
+        }
+    }
 
     private fun localIpv4(): Pair<String, Int>? {
         val cm = getSystemService(ConnectivityManager::class.java)
