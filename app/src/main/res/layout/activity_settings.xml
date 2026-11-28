@@ -8,6 +8,8 @@
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp"
         android:textColor="#AAAAAA"
         android:text="מהבית: הכנס את כתובת ה-IP המקומית (למשל 192.168.1.64). מחוץ לבית: הכנס כתובת DDNS / IP חיצוני, או התחבר ל-VPN של הבית והשתמש בכתובת המקומית." />
+    <Button android:id="@+id/btnScan" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="12dp" android:text="🔍 חפש NVR ברשת" />
     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:text="כתובת (IP או DDNS)" />
     <EditText android:id="@+id/etHost" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:inputType="textUri" android:textDirection="ltr" android:hint="192.168.1.64" />

@@ -1,6 +1,8 @@
 package com.nvrviewer
 
+import android.content.Intent
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -33,6 +35,20 @@ class SettingsActivity : AppCompatActivity() {
     private val grids = listOf(1, 4, 9)
     private val handler = Handler(Looper.getMainLooper())
     private var probe: MediaPlayer? = null
+
+    private val scanLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val data = r.data ?: return@registerForActivityResult
+        data.getStringExtra("host")?.let { etHost.setText(it) }
+        etPort.setText("554")
+        val brand = data.getStringExtra("brand")?.let { runCatching { Brand.valueOf(it) }.getOrNull() }
+        if (brand != null) {
+            spBrand.setSelection(brand.ordinal)
+            result.text = "✓ נבחר ${etHost.text} (${brand.label}). הכנס סיסמה ולחץ שמירה."
+        } else {
+            result.text = "נבחר ${etHost.text}. הכנס סיסמה ולחץ \"זהה יצרן אוטומטית\"."
+        }
+        etPass.requestFocus()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,6 +89,9 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.btnDetect).setOnClickListener { detect() }
+        findViewById<Button>(R.id.btnScan).setOnClickListener {
+            scanLauncher.launch(Intent(this, ScanActivity::class.java))
+        }
         findViewById<Button>(R.id.btnSave).setOnClickListener {
             if (etHost.text.isBlank()) { etHost.error = "חובה"; return@setOnClickListener }
             Prefs.save(this, read())
